@@ -26,6 +26,10 @@ jobs:
       - name: Show Forge version
         run: |
           forge --version
+      
+      - name: Install dependencies
+        run: |
+          forge soldeer install
 
       - name: Run Forge fmt
         run: |
@@ -39,5 +43,5 @@ jobs:
 
       - name: Run Forge tests
         run: |
-          forge test -vvv
+          forge test -vvv --fork-url ${{ secrets.RPC_MAINNET }}
         id: test
