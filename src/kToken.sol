@@ -36,8 +36,6 @@ contract kToken is
 
     /// @notice Role identifier for oracle privileges
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
-    /// @notice Role identifier for upgrader privileges
-    bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
 
     /// @dev Custom decimals storage (ERC20Upgradeable uses 18 by default)
     uint8 private _customDecimals;
@@ -108,7 +106,6 @@ contract kToken is
         __ReentrancyGuard_init();
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin_);
-        _grantRole(UPGRADER_ROLE, admin_);
         _grantRole(MINTER_ROLE, minter_);
     }
 
@@ -129,21 +126,19 @@ contract kToken is
     /// @notice Mints new tokens
     /// @dev Can only be called by addresses with the MINTER_ROLE
     /// @param _to The address to mint the tokens to
-    /// @param _amountLD The amount of tokens to mint
-    function mint(address _to, uint256 _amountLD) external nonReentrant whenNotPaused onlyRole(MINTER_ROLE) {
-        if (_to == address(0)) revert ZeroAddress();
-        _mint(_to, _amountLD);
-        emit Minted(_to, _amountLD);
+    /// @param _amount The amount of tokens to mint
+    function mint(address _to, uint256 _amount) external nonReentrant whenNotPaused onlyRole(MINTER_ROLE) {
+        _mint(_to, _amount);
+        emit Minted(_to, _amount);
     }
 
     /// @notice Burns tokens
     /// @dev Can only be called by addresses with the MINTER_ROLE
     /// @param _from The address to burn the tokens from
-    /// @param _amountSentLD The amount of tokens to burn
-    function burn(address _from, uint256 _amountSentLD) external nonReentrant whenNotPaused onlyRole(MINTER_ROLE) {
-        if (_from == address(0)) revert ZeroAddress();
-        _burn(_from, _amountSentLD);
-        emit Burned(_from, _amountSentLD);
+    /// @param _amount The amount of tokens to burn
+    function burn(address _from, uint256 _amount) external nonReentrant whenNotPaused onlyRole(MINTER_ROLE) {
+        _burn(_from, _amount);
+        emit Burned(_from, _amount);
     }
 
     /// @notice Burns tokens from specified address (requires approval)
@@ -151,7 +146,6 @@ contract kToken is
     /// @param _from The address to burn the tokens from
     /// @param _amount The amount of tokens to burn
     function burnFrom(address _from, uint256 _amount) external nonReentrant whenNotPaused onlyRole(MINTER_ROLE) {
-        if (_from == address(0)) revert ZeroAddress();
         _spendAllowance(_from, msg.sender, _amount);
         _burn(_from, _amount);
         emit Burned(_from, _amount);
@@ -161,10 +155,9 @@ contract kToken is
                                INTERNAL
     //////////////////////////////////////////////////////////////*/
 
-    /// @dev Authorizes contract upgrades (only UPGRADER_ROLE)
-    function _authorizeUpgrade(address newImplementation) internal override onlyRole(UPGRADER_ROLE) {
+    /// @dev Authorizes contract upgrades (only owner)
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {
         if (newImplementation == address(0)) revert ZeroAddress();
-        // add version !?
         emit UpgradeAuthorized(newImplementation, msg.sender);
     }
 

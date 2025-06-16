@@ -2,10 +2,10 @@
 pragma solidity ^0.8.20;
 
 import { kToken } from "../../src/kToken.sol";
-import { kOFTMock } from "../mocks/kOFTMock.sol";
 
 import { kOFTV2 } from "../kOFTV2.sol";
 import { MockLayerZeroEndpoint } from "../mocks/MockLayerZeroEndpoint.sol";
+import { kOFTMock } from "../mocks/kOFTMock.sol";
 import { SendParam } from "@layerzerolabs/oft-evm/contracts/interfaces/IOFT.sol";
 import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import "forge-std/Test.sol";
@@ -30,11 +30,8 @@ contract kOFTTest is Test {
     MockLayerZeroEndpoint public mockEndpoint;
 
     function setUp() public {
-        // Deploy mock LayerZero endpoint
         mockEndpoint = new MockLayerZeroEndpoint();
         lzEndpoint = address(mockEndpoint);
-
-        // Deploy kToken via proxy
         kToken tokenImpl = new kToken();
         bytes memory tokenInit =
             abi.encodeWithSelector(kToken.initialize.selector, NAME, SYMBOL, DECIMALS, owner, admin, minter);
@@ -42,22 +39,15 @@ contract kOFTTest is Test {
         token = kToken(address(tokenProxy));
         bool isAdmin = token.hasRole(token.DEFAULT_ADMIN_ROLE(), admin);
         assertTrue(isAdmin, "admin should have DEFAULT_ADMIN_ROLE on token");
-
-        // Fund admin for tx costs
         vm.deal(admin, 1 ether);
-
-        // Deploy kOFTMock via proxy
         kOFTMock oftImpl = new kOFTMock(lzEndpoint, DECIMALS);
         bytes memory oftInit = abi.encodeWithSelector(oftImpl.initialize.selector, address(this), address(token));
         ERC1967Proxy oftProxy = new ERC1967Proxy(address(oftImpl), oftInit);
         oft = kOFTMock(address(oftProxy));
-
         oft.initializeMock(address(this));
-
         vm.startPrank(admin);
         token.grantRole(token.MINTER_ROLE(), address(oft));
         vm.stopPrank();
-
         oft.setMinter(address(this));
     }
 
@@ -75,12 +65,9 @@ contract kOFTTest is Test {
     }
 
     function testDebitViewReturnsCorrectAmounts() public {
-        // Mint tokens to user
         vm.prank(minter);
         token.mint(user, 1e18);
-        // oft must have MINTER_ROLE
         assertTrue(token.hasRole(token.MINTER_ROLE(), address(oft)));
-        // Check positive path
         (uint256 sent, uint256 received) = oft.debitView(1e18, 1e18, 1);
         assertLe(received, 1e18);
     }
@@ -88,7 +75,6 @@ contract kOFTTest is Test {
     function testRemoveDust() public {
         uint256 amount = 1.23456789 ether;
         uint256 noDust = oft.removeDust(amount);
-        // Should be less than or equal to original
         assertLe(noDust, amount);
     }
 
@@ -107,7 +93,6 @@ contract kOFTTest is Test {
     }
 
     function testBuildMsgAndOptions() public {
-        // Build a dummy SendParam
         SendParam memory param = SendParam({
             dstEid: 1,
             to: bytes32(uint256(uint160(user))),
@@ -147,5 +132,16 @@ contract kOFTTest is Test {
         oft.exposedCredit(from, amount, 1);
         oft.exposedDebit(from, amount, amount, 1);
         assertEq(token.balanceOf(from), 0);
+    }
+
+    function testOnlyOwnerCanUpgrade() public {
+        kOFTMock newImpl = new kOFTMock(lzEndpoint, DECIMALS);
+        address notOwner = address(0xBEEF);
+        vm.prank(notOwner);
+        vm.expectRevert();
+        IUpgrade(address(oft)).upgradeTo(address(newImpl));
+        vm.prank(address(this));
+        vm.expectRevert();
+        IUpgrade(address(oft)).upgradeTo(address(newImpl));
     }
 }

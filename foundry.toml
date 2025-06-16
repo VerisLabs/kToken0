@@ -10,6 +10,14 @@ optimizer = true
 optimizer_runs = 1000
 via_ir=true
 
+[profile.ci-fast]
+fuzz = { runs = 500 }
+invariant = { runs = 128 }
+
+[profile.ci-fork]
+fuzz = { runs = 50 }           # Fewer runs for fork tests
+invariant = { runs = 25 }
+
 [fmt]
 bracket_spacing = true
 int_types = "long"
@@ -20,6 +28,24 @@ quote_style = "double"
 tab_width = 4
 wrap_comments = true
 sort_imports = true
+
+[fuzz]
+runs = 1000                   
+max_test_rejects = 100000
+seed = "0x1"
+dictionary_weight = 40
+include_storage = true
+include_push_bytes = true
+
+[invariant]
+runs = 256
+depth = 500
+fail_on_revert = false
+call_override = false
+dictionary_weight = 80
+include_storage = true
+include_push_bytes = true
+shrink_runs = 5000
 
 [dependencies]
 forge-std = "1.9.7"

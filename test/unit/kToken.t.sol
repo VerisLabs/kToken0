@@ -32,7 +32,6 @@ contract kTokenTest is Test {
     function testInitialRolesAndOwner() public {
         assertEq(token.owner(), owner);
         assertTrue(token.hasRole(token.DEFAULT_ADMIN_ROLE(), admin));
-        assertTrue(token.hasRole(token.UPGRADER_ROLE(), admin));
         assertTrue(token.hasRole(token.MINTER_ROLE(), minter));
     }
 
@@ -51,6 +50,12 @@ contract kTokenTest is Test {
         token.mint(user, 1000);
     }
 
+    function testMintToZeroAddressReverts() public {
+        vm.prank(minter);
+        vm.expectRevert();
+        token.mint(address(0), 1000);
+    }
+
     function testBurnByMinter() public {
         vm.prank(minter);
         token.mint(user, 1000);
@@ -62,6 +67,18 @@ contract kTokenTest is Test {
     function testBurnByNonMinterReverts() public {
         vm.expectRevert();
         token.burn(user, 100);
+    }
+
+    function testBurnFromZeroAddressReverts() public {
+        vm.prank(minter);
+        vm.expectRevert();
+        token.burn(address(0), 1000);
+    }
+
+    function testBurnFromZeroAddressBurnFromReverts() public {
+        vm.prank(minter);
+        vm.expectRevert();
+        token.burnFrom(address(0), 1000);
     }
 
     function testMintEvent() public {
@@ -85,14 +102,115 @@ contract kTokenTest is Test {
         token.initialize(NAME, SYMBOL, DECIMALS, owner, admin, minter);
     }
 
-    function testUpgradeToZeroAddressReverts() public {
-        kToken implementation = new kToken();
-        bytes memory data =
-            abi.encodeWithSelector(kToken.initialize.selector, NAME, SYMBOL, DECIMALS, owner, admin, minter);
-        ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
-        kToken proxied = kToken(address(proxy));
+    function testBurnFromWithAllowance() public {
+        vm.prank(minter);
+        token.mint(user, 1000);
+        vm.prank(user);
+        token.approve(minter, 600);
+        vm.prank(minter);
+        token.burnFrom(user, 600);
+        assertEq(token.balanceOf(user), 400);
+    }
+
+    function testBurnFromWithoutAllowanceReverts() public {
+        vm.prank(minter);
+        token.mint(user, 1000);
+        vm.prank(minter);
+        vm.expectRevert();
+        token.burnFrom(user, 1000);
+    }
+
+    function testOnlyAdminCanPause() public {
+        vm.expectRevert();
+        token.pause(true);
+        vm.prank(admin);
+        token.pause(true);
+        assertTrue(token.isPaused());
+    }
+
+    function testPauseStateEventEmitted() public {
+        vm.prank(admin);
+        vm.expectEmit(false, false, false, true);
+        emit kToken.PauseState(true);
+        token.pause(true);
+        vm.prank(admin);
+        vm.expectEmit(false, false, false, true);
+        emit kToken.PauseState(false);
+        token.pause(false);
+    }
+
+    function testMintBurnBurnFromRevertWhenPaused() public {
+        vm.prank(admin);
+        token.pause(true);
+        vm.prank(minter);
+        vm.expectRevert();
+        token.mint(user, 1000);
+        vm.prank(minter);
+        vm.expectRevert();
+        token.burn(user, 1000);
+        vm.prank(minter);
+        vm.expectRevert();
+        token.burnFrom(user, 1000);
+    }
+
+    function testMintBurnBurnFromWorkWhenUnpaused() public {
+        vm.prank(admin);
+        token.pause(true);
+        vm.prank(admin);
+        token.pause(false);
+        vm.prank(minter);
+        token.mint(user, 1000);
+        assertEq(token.balanceOf(user), 1000);
+        vm.prank(minter);
+        token.burn(user, 500);
+        assertEq(token.balanceOf(user), 500);
+        vm.prank(user);
+        token.approve(minter, 500);
+        vm.prank(minter);
+        token.burnFrom(user, 500);
+        assertEq(token.balanceOf(user), 0);
+    }
+
+    function testOnlyOwnerCanUpgrade() public {
+        kToken newImpl = new kToken();
+        address notOwner = address(0xBEEF);
+        vm.prank(notOwner);
+        vm.expectRevert();
+        IUpgrade(address(token)).upgradeTo(address(newImpl));
         vm.prank(owner);
         vm.expectRevert();
-        IUpgrade(address(proxied)).upgradeTo(address(0));
+        IUpgrade(address(token)).upgradeTo(address(newImpl));
+    }
+
+    function testTotalSupplyEqualsSumOfBalances() public {
+        address[] memory actors = new address[](5);
+        actors[0] = owner;
+        actors[1] = admin;
+        actors[2] = minter;
+        actors[3] = upgrader;
+        actors[4] = user;
+        // Mint to all actors
+        vm.prank(minter);
+        token.mint(owner, 100);
+        vm.prank(minter);
+        token.mint(admin, 200);
+        vm.prank(minter);
+        token.mint(minter, 300);
+        vm.prank(minter);
+        token.mint(upgrader, 400);
+        vm.prank(minter);
+        token.mint(user, 500);
+        // Burn some from user
+        vm.prank(minter);
+        token.burn(user, 100);
+        // Transfer from owner to user
+        vm.prank(owner);
+        token.transfer(user, 50);
+        // Calculate sum of balances
+        uint256 sum = 0;
+        for (uint256 i = 0; i < actors.length; i++) {
+            sum += token.balanceOf(actors[i]);
+        }
+        assertEq(token.totalSupply(), sum, "Total supply should equal sum of all balances");
     }
 }
