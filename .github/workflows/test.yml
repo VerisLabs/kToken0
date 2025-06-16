@@ -43,14 +43,7 @@ jobs:
           forge build --sizes
         id: build
 
-      - name: Run unit tests
+      - name: Run Forge tests
         run: |
-          forge test --profile ci-fast \
-            --no-match-path "**/BridgeSimulationFork.t.sol"
-        id: unit
-
-      - name: Run fork tests
-        run: |
-          forge test --profile ci-fork \
-            --match-path "**/BridgeSimulationFork.t.sol" \
-            --fork-url ${{ secrets.RPC_MAINNET }}
+          forge test -vvv --fork-url ${{ secrets.RPC_MAINNET }}
+        id: test
