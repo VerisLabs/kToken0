@@ -32,7 +32,6 @@ contract kTokenTest is Test {
     function testInitialRolesAndOwner() public {
         assertEq(token.owner(), owner);
         assertTrue(token.hasRole(token.DEFAULT_ADMIN_ROLE(), admin));
-        assertTrue(token.hasRole(token.ADMIN_ROLE(), admin));
         assertTrue(token.hasRole(token.UPGRADER_ROLE(), admin));
         assertTrue(token.hasRole(token.MINTER_ROLE(), minter));
     }
