@@ -8,6 +8,7 @@ import { UUPSUpgradeable } from "@openzeppelin/contracts-upgradeable/proxy/utils
 import { ERC20Upgradeable } from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import { ERC20PermitUpgradeable } from
     "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
+import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 
 /// @title kToken
 /// @notice Upgradeable ERC20 token with role-based mint/burn and UUPS upgradeability
@@ -17,7 +18,8 @@ contract kToken is
     ERC20PermitUpgradeable,
     OwnableUpgradeable,
     AccessControlUpgradeable,
-    UUPSUpgradeable
+    UUPSUpgradeable,
+    ReentrancyGuardUpgradeable
 {
     /*//////////////////////////////////////////////////////////////
                                 ERRORS
@@ -25,20 +27,21 @@ contract kToken is
 
     /// @notice Thrown when the address is the zero address
     error ZeroAddress();
+    /// @notice Thrown when the contract is paused
+    error Paused();
 
     /*//////////////////////////////////////////////////////////////
                                 STORAGE
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Role identifier for admin privileges
-    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     /// @notice Role identifier for oracle privileges
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
-    /// @notice Role identifier for upgrader privileges
-    bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
 
     /// @dev Custom decimals storage (ERC20Upgradeable uses 18 by default)
     uint8 private _customDecimals;
+
+    /// @dev Pause state
+    bool public isPaused;
 
     /*//////////////////////////////////////////////////////////////
                                 EVENTS
@@ -50,6 +53,17 @@ contract kToken is
     event Burned(address indexed from, uint256 amount);
     /// @notice Emitted when the upgrade is authorized
     event UpgradeAuthorized(address indexed newImplementation, address indexed sender);
+    /// @notice Emitted when the contract is paused
+    event PauseState(bool isPaused);
+
+    /*//////////////////////////////////////////////////////////////
+                                MODIFIERS
+    //////////////////////////////////////////////////////////////*/
+
+    modifier whenNotPaused() {
+        if (isPaused) revert Paused();
+        _;
+    }
 
     /*//////////////////////////////////////////////////////////////
                               INITIALIZER
@@ -89,11 +103,20 @@ contract kToken is
         __Ownable_init(owner_);
         __AccessControl_init();
         __UUPSUpgradeable_init();
+        __ReentrancyGuard_init();
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin_);
-        _grantRole(ADMIN_ROLE, admin_);
-        _grantRole(UPGRADER_ROLE, admin_);
         _grantRole(MINTER_ROLE, minter_);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                                ADMIN
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice Pauses the contract
+    function pause(bool _isPaused) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        isPaused = _isPaused;
+        emit PauseState(_isPaused);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -104,7 +127,7 @@ contract kToken is
     /// @dev Can only be called by addresses with the MINTER_ROLE
     /// @param _to The address to mint the tokens to
     /// @param _amount The amount of tokens to mint
-    function mint(address _to, uint256 _amount) external onlyRole(MINTER_ROLE) {
+    function mint(address _to, uint256 _amount) external nonReentrant whenNotPaused onlyRole(MINTER_ROLE) {
         _mint(_to, _amount);
         emit Minted(_to, _amount);
     }
@@ -113,7 +136,17 @@ contract kToken is
     /// @dev Can only be called by addresses with the MINTER_ROLE
     /// @param _from The address to burn the tokens from
     /// @param _amount The amount of tokens to burn
-    function burn(address _from, uint256 _amount) external onlyRole(MINTER_ROLE) {
+    function burn(address _from, uint256 _amount) external nonReentrant whenNotPaused onlyRole(MINTER_ROLE) {
+        _burn(_from, _amount);
+        emit Burned(_from, _amount);
+    }
+
+    /// @notice Burns tokens from specified address (requires approval)
+    /// @dev Can only be called by addresses with the MINTER_ROLE
+    /// @param _from The address to burn the tokens from
+    /// @param _amount The amount of tokens to burn
+    function burnFrom(address _from, uint256 _amount) external nonReentrant whenNotPaused onlyRole(MINTER_ROLE) {
+        _spendAllowance(_from, msg.sender, _amount);
         _burn(_from, _amount);
         emit Burned(_from, _amount);
     }
@@ -122,10 +155,9 @@ contract kToken is
                                INTERNAL
     //////////////////////////////////////////////////////////////*/
 
-    /// @dev Authorizes contract upgrades (only UPGRADER_ROLE)
-    function _authorizeUpgrade(address newImplementation) internal override onlyRole(UPGRADER_ROLE) {
+    /// @dev Authorizes contract upgrades (only owner)
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {
         if (newImplementation == address(0)) revert ZeroAddress();
-        // add version !?
         emit UpgradeAuthorized(newImplementation, msg.sender);
     }
 
