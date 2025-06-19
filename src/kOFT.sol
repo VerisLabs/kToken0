@@ -19,11 +19,20 @@ contract kOFT is Initializable, OFTCoreUpgradeable, UUPSUpgradeable {
     error ZeroAddress();
 
     /*//////////////////////////////////////////////////////////////
-                                STORAGE
+                            CUSTOM STORAGE
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice The token contract (mint/burn authority)
-    IKToken public tokenContract;
+    /// @custom:storage-location erc7201:kToken.storage.kOFT
+    struct kOFTStorage {
+        IKToken tokenContract;
+    }
+
+    // keccak256(abi.encode(uint256(keccak256("kToken.storage.kOFT")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant KOFT_STORAGE_LOCATION = 0x587644eb4c3fc73ac10d93e63726f81712536f856733fbd55e29cec63353dd00;
+
+    /*//////////////////////////////////////////////////////////////
+                                STORAGE
+    //////////////////////////////////////////////////////////////*/
 
     /// @notice The default decimals value for kOFT
     uint8 public constant DEFAULT_DECIMALS = 18;
@@ -54,7 +63,7 @@ contract kOFT is Initializable, OFTCoreUpgradeable, UUPSUpgradeable {
         __OFTCore_init(delegate_);
         __Ownable_init(delegate_);
         __UUPSUpgradeable_init();
-        tokenContract = IKToken(tokenContract_);
+        _getkOFTStorage().tokenContract = IKToken(tokenContract_);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -79,7 +88,7 @@ contract kOFT is Initializable, OFTCoreUpgradeable, UUPSUpgradeable {
         // therefore amountSentLD CAN differ from amountReceivedLD.
 
         // @dev Default OFT burns on src.
-        tokenContract.burn(_from, amountSentLD);
+        _getkOFTStorage().tokenContract.burn(_from, amountSentLD);
     }
 
     /// @dev Credits tokens to the specified address (internal, override)
@@ -95,7 +104,7 @@ contract kOFT is Initializable, OFTCoreUpgradeable, UUPSUpgradeable {
     {
         if (_to == address(0)) _to = address(0xdead); // _mint(...) does not support address(0x0)
         // @dev Default OFT mints on dst.
-        tokenContract.mint(_to, _amountLD);
+        _getkOFTStorage().tokenContract.mint(_to, _amountLD);
         // @dev In the case of NON-default OFT, the _amountLD MIGHT not be == amountReceivedLD.
         return _amountLD;
     }
@@ -165,9 +174,12 @@ contract kOFT is Initializable, OFTCoreUpgradeable, UUPSUpgradeable {
     }
 
     /*//////////////////////////////////////////////////////////////
-                        STORAGE GAP
+                            STORAGE
     //////////////////////////////////////////////////////////////*/
 
-    /// @dev Storage gap for future upgrades
-    uint256[49] private __gap;
+    function _getkOFTStorage() private pure returns (kOFTStorage storage $) {
+        assembly {
+            $.slot := KOFT_STORAGE_LOCATION
+        }
+    }
 }

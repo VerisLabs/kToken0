@@ -1,77 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
-import "../../src/kToken.sol";
-import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import "../../../src/kToken.sol";
 import "forge-std/Test.sol";
 
-/// @title kTokenInvariantTest
-/// @notice Stateful invariant testing for kToken
-contract kTokenInvariantTest is Test {
-    kToken public token;
-    TokenHandler public handler;
-    address public owner;
-    address public admin;
-    address public minter;
-
-    function setUp() public {
-        owner = makeAddr("owner");
-        admin = makeAddr("admin");
-        minter = makeAddr("minter");
-        kToken implementation = new kToken();
-        bytes memory data =
-            abi.encodeWithSelector(kToken.initialize.selector, "Test Token", "TEST", 18, owner, admin, minter);
-        ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
-        token = kToken(address(proxy));
-        handler = new TokenHandler(token, minter, admin);
-        targetContract(address(handler));
-        bytes4[] memory selectors = new bytes4[](6);
-        selectors[0] = TokenHandler.mint.selector;
-        selectors[1] = TokenHandler.burn.selector;
-        selectors[2] = TokenHandler.transfer.selector;
-        selectors[3] = TokenHandler.approve.selector;
-        selectors[4] = TokenHandler.transferFrom.selector;
-        selectors[5] = TokenHandler.pause.selector;
-        targetSelector(FuzzSelector({ addr: address(handler), selectors: selectors }));
-    }
-
-    function invariant_TotalSupplyEqualsNetMinting() public view {
-        assertEq(
-            token.totalSupply(),
-            handler.totalMinted() - handler.totalBurned(),
-            "Total supply should equal total minted minus total burned"
-        );
-    }
-
-    function invariant_BalancesShouldNotExceedTotalSupply() public view {
-        address[] memory actors = handler.getActors();
-        uint256 totalSupply = token.totalSupply();
-        for (uint256 i = 0; i < actors.length; i++) {
-            assertLe(token.balanceOf(actors[i]), totalSupply, "Individual balance should not exceed total supply");
-        }
-    }
-
-    function invariant_BalanceAccountingConsistency() public view {
-        address[] memory actors = handler.getActors();
-        for (uint256 i = 0; i < actors.length; i++) {
-            address actor = actors[i];
-            uint256 currentBalance = token.balanceOf(actor);
-            int256 netMinted = handler.getNetMinted(actor);
-            int256 netTransferred = handler.getNetTransferred(actor);
-            int256 expected = netMinted + netTransferred;
-            if (expected >= 0) {
-                assertEq(int256(currentBalance), expected, "Balance should equal net minted plus net transferred");
-            }
-        }
-    }
-
-    function invariant_TokenMetadataImmutable() public view {
-        assertEq(token.name(), "Test Token", "Token name should not change");
-        assertEq(token.symbol(), "TEST", "Token symbol should not change");
-        assertEq(token.decimals(), 18, "Token decimals should not change");
-    }
-}
-
+/// @title TokenHandler
+/// @notice Handler contract for kToken invariant testing
 contract TokenHandler is Test {
     kToken public immutable token;
     address public immutable minter;
@@ -86,7 +20,16 @@ contract TokenHandler is Test {
     mapping(address => bool) public isActor;
     mapping(address => int256) public netMinted;
     mapping(address => int256) public netTransferred;
+    mapping(address => mapping(address => uint256)) public allowances;
     uint256 public constant MAX_ACTORS = 20;
+
+    // Add call tracking
+    mapping(string => uint256) public calls;
+
+    modifier countCall(string memory name) {
+        calls[name]++;
+        _;
+    }
 
     constructor(kToken _token, address _minter, address _admin) {
         token = _token;
@@ -117,20 +60,28 @@ contract TokenHandler is Test {
         return netTransferred[a];
     }
 
+    function getAllowance(address owner, address spender) public view returns (uint256) {
+        return allowances[owner][spender];
+    }
+
     function wasLastOperationBlocked() public view returns (bool) {
         return wasLastMintOrBurnBlocked;
     }
 
-    function mint(uint256 actorSeed, uint256 amount) public {
-        address to = _getActor(actorSeed);
-        amount = bound(amount, 1, type(uint128).max);
+    function mint(uint256 actorSeed, uint256 amount) public countCall("mint") {
+        address actor = _getActor(actorSeed);
+        if (token.isPaused()) {
+            wasLastMintOrBurnBlocked = true;
+            return;
+        }
         wasLastMintOrBurnBlocked = false;
+        amount = bound(amount, 1, type(uint128).max);
         vm.prank(minter);
-        try token.mint(to, amount) {
+        try token.mint(actor, amount) {
             totalMinted += amount;
-            netMinted[to] += int256(amount);
+            netMinted[actor] += int256(amount);
             mintCalls++;
-            _addActor(to);
+            _addActor(actor);
         } catch Error(string memory reason) {
             if (keccak256(bytes(reason)) == keccak256(bytes("Paused()"))) {
                 wasLastMintOrBurnBlocked = true;
@@ -140,16 +91,20 @@ contract TokenHandler is Test {
         }
     }
 
-    function burn(uint256 actorSeed, uint256 amount) public {
-        address from = _getActor(actorSeed);
-        uint256 balance = token.balanceOf(from);
+    function burn(uint256 actorSeed, uint256 amount) public countCall("burn") {
+        address actor = _getActor(actorSeed);
+        if (token.isPaused()) {
+            wasLastMintOrBurnBlocked = true;
+            return;
+        }
+        wasLastMintOrBurnBlocked = false;
+        uint256 balance = token.balanceOf(actor);
         if (balance == 0) return;
         amount = bound(amount, 1, balance);
-        wasLastMintOrBurnBlocked = false;
         vm.prank(minter);
-        try token.burn(from, amount) {
+        try token.burn(actor, amount) {
             totalBurned += amount;
-            netMinted[from] -= int256(amount);
+            netMinted[actor] -= int256(amount);
             burnCalls++;
         } catch Error(string memory reason) {
             if (keccak256(bytes(reason)) == keccak256(bytes("Paused()"))) {
@@ -160,7 +115,7 @@ contract TokenHandler is Test {
         }
     }
 
-    function transfer(uint256 fromSeed, uint256 toSeed, uint256 amount) public {
+    function transfer(uint256 fromSeed, uint256 toSeed, uint256 amount) public countCall("transfer") {
         address from = _getActor(fromSeed);
         address to = _getActor(toSeed);
         if (from == to) return;
@@ -176,13 +131,16 @@ contract TokenHandler is Test {
         } catch { }
     }
 
-    function approve(uint256 ownerSeed, uint256 spenderSeed, uint256 amount) public {
+    function approve(uint256 ownerSeed, uint256 spenderSeed, uint256 amount) public countCall("approve") {
         address owner_ = _getActor(ownerSeed);
         address spender = _getActor(spenderSeed);
         if (owner_ == spender) return;
         amount = bound(amount, 0, type(uint128).max);
         vm.prank(owner_);
-        try token.approve(spender, amount) { } catch { }
+        try token.approve(spender, amount) {
+            allowances[owner_][spender] = amount;
+            _addActor(spender);
+        } catch { }
     }
 
     function transferFrom(
@@ -193,6 +151,7 @@ contract TokenHandler is Test {
     )
         public
         createActorIfNew(_getActor(toSeed))
+        countCall("transferFrom")
     {
         address owner_ = _getActor(ownerSeed);
         address spender = _getActor(spenderSeed);
@@ -206,17 +165,32 @@ contract TokenHandler is Test {
         try token.transferFrom(owner_, to, amount) {
             netTransferred[owner_] -= int256(amount);
             netTransferred[to] += int256(amount);
+            allowances[owner_][spender] = allowance - amount;
             _addActor(to);
         } catch { }
     }
 
-    function pause(uint256 shouldPause) public {
-        bool pauseState = (shouldPause % 2 == 0);
+    function pause(uint256 value) public countCall("pause") {
+        // Convert large numbers to boolean using modulo 2
+        bool shouldPause = value % 2 == 1;
         vm.prank(admin);
-        try token.pause(pauseState) { } catch { }
+        token.pause(shouldPause);
+        wasLastMintOrBurnBlocked = shouldPause;
     }
 
-    function _getActor(uint256 seed) internal view returns (address) {
+    function _getActor(uint256 seed) internal pure returns (address) {
         return address(uint160(uint256(keccak256(abi.encodePacked(seed)))));
+    }
+
+    function callSummary() public view {
+        console.log("Call Summary:");
+        console.log("-------------------");
+        console.log("mint:", calls["mint"]);
+        console.log("burn:", calls["burn"]);
+        console.log("transfer:", calls["transfer"]);
+        console.log("approve:", calls["approve"]);
+        console.log("transferFrom:", calls["transferFrom"]);
+        console.log("pause:", calls["pause"]);
+        console.log("-------------------");
     }
 }

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import { IKToken } from "../../src/interfaces/IKToken.sol";
 import { kToken } from "../../src/kToken.sol";
-
 import { kOFTV2 } from "../kOFTV2.sol";
 import { MockLayerZeroEndpoint } from "../mocks/MockLayerZeroEndpoint.sol";
 import { kOFTMock } from "../mocks/kOFTMock.sol";
@@ -52,7 +52,7 @@ contract kOFTTest is Test {
     }
 
     function testInitialSetup() public {
-        assertEq(address(oft.tokenContract()), address(token));
+        assertEq(address(oft.getkOFTStorage()), address(token));
         assertEq(oft.owner(), address(this));
     }
 

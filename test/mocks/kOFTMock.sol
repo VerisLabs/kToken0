@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
+import { IKToken } from "../../src/interfaces/IKToken.sol";
 import { kOFT } from "../../src/kOFT.sol";
 
 contract kOFTMock is kOFT {
@@ -39,5 +40,16 @@ contract kOFTMock is kOFT {
 
     function initializeMock(address initialMinter) external reinitializer(2) {
         minter = initialMinter;
+    }
+
+    // Expose the storage getter for testing
+    function getkOFTStorage() external view returns (IKToken) {
+        // keccak256(abi.encode(uint256(keccak256("kToken.storage.kOFT")) - 1)) & ~bytes32(uint256(0xff))
+        bytes32 location = 0x587644eb4c3fc73ac10d93e63726f81712536f856733fbd55e29cec63353dd00;
+        IKToken tokenContract;
+        assembly {
+            tokenContract := sload(location)
+        }
+        return tokenContract;
     }
 }

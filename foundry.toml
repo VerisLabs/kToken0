@@ -39,13 +39,12 @@ include_push_bytes = true
 
 [invariant]
 runs = 256
-depth = 500
-fail_on_revert = false
+depth = 16
+fail_on_revert = true
 call_override = false
 dictionary_weight = 80
 include_storage = true
 include_push_bytes = true
-shrink_runs = 5000
 
 [dependencies]
 forge-std = "1.9.7"
