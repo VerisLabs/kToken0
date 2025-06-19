@@ -90,16 +90,22 @@ contract TokenHandler is Test {
 
     function mint(uint256 actorSeed, uint256 amount) public countCall("mint") {
         address actor = _getActor(actorSeed);
-        if (token.isPaused()) {
+        amount = bound(amount, 1, type(uint128).max);
+        
+        // Get current state right before operation
+        uint256 currentTotalSupply = token.totalSupply();
+        uint256 currentBalance = token.balanceOf(actor);
+        bool currentPauseState = token.isPaused();
+        
+        if (currentPauseState) {
             wasLastMintOrBurnBlocked = true;
             return;
         }
         wasLastMintOrBurnBlocked = false;
-        amount = bound(amount, 1, type(uint128).max);
         
-        // Calculate expected state changes
-        expectedTotalSupply = actualTotalSupply + amount;
-        expectedBalances[actor] = actualBalances[actor] + amount;
+        // Set expected state based on current state
+        expectedTotalSupply = currentTotalSupply + amount;
+        expectedBalances[actor] = currentBalance + amount;
         
         vm.prank(minter);
         try token.mint(actor, amount) {
@@ -114,28 +120,40 @@ contract TokenHandler is Test {
             mintCalls++;
             _addActor(actor);
         } catch Error(string memory reason) {
+            // Revert expected state if operation failed
+            expectedTotalSupply = currentTotalSupply;
+            expectedBalances[actor] = currentBalance;
+            
             if (keccak256(bytes(reason)) == keccak256(bytes("Paused()"))) {
                 wasLastMintOrBurnBlocked = true;
             }
         } catch {
-            // Other errors, do not set wasLastMintOrBurnBlocked
+            // Revert expected state if operation failed
+            expectedTotalSupply = currentTotalSupply;
+            expectedBalances[actor] = currentBalance;
         }
     }
 
     function burn(uint256 actorSeed, uint256 amount) public countCall("burn") {
         address actor = _getActor(actorSeed);
-        if (token.isPaused()) {
+        
+        // Get current state right before operation
+        uint256 currentTotalSupply = token.totalSupply();
+        uint256 currentBalance = token.balanceOf(actor);
+        bool currentPauseState = token.isPaused();
+        
+        if (currentPauseState) {
             wasLastMintOrBurnBlocked = true;
             return;
         }
         wasLastMintOrBurnBlocked = false;
-        uint256 balance = token.balanceOf(actor);
-        if (balance == 0) return;
-        amount = bound(amount, 1, balance);
         
-        // Calculate expected state changes
-        expectedTotalSupply = actualTotalSupply - amount;
-        expectedBalances[actor] = actualBalances[actor] - amount;
+        if (currentBalance == 0) return;
+        amount = bound(amount, 1, currentBalance);
+        
+        // Set expected state based on current state
+        expectedTotalSupply = currentTotalSupply - amount;
+        expectedBalances[actor] = currentBalance - amount;
         
         vm.prank(minter);
         try token.burn(actor, amount) {
@@ -149,11 +167,17 @@ contract TokenHandler is Test {
             netMinted[actor] -= int256(amount);
             burnCalls++;
         } catch Error(string memory reason) {
+            // Revert expected state if operation failed
+            expectedTotalSupply = currentTotalSupply;
+            expectedBalances[actor] = currentBalance;
+            
             if (keccak256(bytes(reason)) == keccak256(bytes("Paused()"))) {
                 wasLastMintOrBurnBlocked = true;
             }
         } catch {
-            // Other errors, do not set wasLastMintOrBurnBlocked
+            // Revert expected state if operation failed
+            expectedTotalSupply = currentTotalSupply;
+            expectedBalances[actor] = currentBalance;
         }
     }
 
@@ -161,13 +185,18 @@ contract TokenHandler is Test {
         address from = _getActor(fromSeed);
         address to = _getActor(toSeed);
         if (from == to) return;
-        uint256 balance = token.balanceOf(from);
-        if (balance == 0) return;
-        amount = bound(amount, 1, balance);
         
-        // Calculate expected state changes
-        expectedBalances[from] = actualBalances[from] - amount;
-        expectedBalances[to] = actualBalances[to] + amount;
+        // Get current state right before operation
+        uint256 currentFromBalance = token.balanceOf(from);
+        uint256 currentToBalance = token.balanceOf(to);
+        bool currentPauseState = token.isPaused();
+        
+        if (currentFromBalance == 0) return;
+        amount = bound(amount, 1, currentFromBalance);
+        
+        // Set expected state based on current state
+        expectedBalances[from] = currentFromBalance - amount;
+        expectedBalances[to] = currentToBalance + amount;
         
         vm.prank(from);
         try token.transfer(to, amount) {
@@ -182,7 +211,11 @@ contract TokenHandler is Test {
             netTransferred[to] += int256(amount);
             transferCalls++;
             _addActor(to);
-        } catch { }
+        } catch {
+            // Revert expected state if operation failed
+            expectedBalances[from] = currentFromBalance;
+            expectedBalances[to] = currentToBalance;
+        }
     }
 
     function approve(uint256 ownerSeed, uint256 spenderSeed, uint256 amount) public countCall("approve") {
@@ -191,18 +224,23 @@ contract TokenHandler is Test {
         if (owner_ == spender) return;
         amount = bound(amount, 0, type(uint128).max);
         
-        // Set expected state
+        // Get current state right before operation
+        uint256 currentAllowance = token.allowance(owner_, spender);
+        bool currentPauseState = token.isPaused();
+        
+        // Set expected state based on current state
         expectedAllowances[owner_][spender] = amount;
         
         vm.prank(owner_);
         try token.approve(spender, amount) {
             // Update actual state
             actualAllowances[owner_][spender] = token.allowance(owner_, spender);
+            actualPauseState = token.isPaused();
             allowances[owner_][spender] = amount;
             _addActor(spender);
         } catch {
-            // If approve fails, revert expected state
-            expectedAllowances[owner_][spender] = allowances[owner_][spender];
+            // Revert expected state if operation failed
+            expectedAllowances[owner_][spender] = currentAllowance;
         }
     }
 
@@ -220,16 +258,21 @@ contract TokenHandler is Test {
         address spender = _getActor(spenderSeed);
         address to = _getActor(toSeed);
         if (owner_ == spender || owner_ == to || spender == to) return;
-        uint256 balance = token.balanceOf(owner_);
-        uint256 allowance = token.allowance(owner_, spender);
-        if (balance == 0 || allowance == 0) return;
-        amount = bound(amount, 1, balance < allowance ? balance : allowance);
-
-        // Calculate expected state changes
-        expectedBalances[owner_] = actualBalances[owner_] - amount;
-        expectedBalances[to] = actualBalances[to] + amount;
-        expectedAllowances[owner_][spender] = allowance - amount;
-
+        
+        // Get current state right before operation
+        uint256 currentOwnerBalance = token.balanceOf(owner_);
+        uint256 currentToBalance = token.balanceOf(to);
+        uint256 currentAllowance = token.allowance(owner_, spender);
+        bool currentPauseState = token.isPaused();
+        
+        if (currentOwnerBalance == 0 || currentAllowance == 0) return;
+        amount = bound(amount, 1, currentOwnerBalance < currentAllowance ? currentOwnerBalance : currentAllowance);
+        
+        // Set expected state based on current state
+        expectedBalances[owner_] = currentOwnerBalance - amount;
+        expectedBalances[to] = currentToBalance + amount;
+        expectedAllowances[owner_][spender] = currentAllowance - amount;
+        
         vm.prank(spender);
         try token.transferFrom(owner_, to, amount) {
             // Update actual state
@@ -238,13 +281,18 @@ contract TokenHandler is Test {
             actualAllowances[owner_][spender] = token.allowance(owner_, spender);
             actualTotalSupply = token.totalSupply();
             actualPauseState = token.isPaused();
-
+            
             // Update tracking variables
             netTransferred[owner_] -= int256(amount);
             netTransferred[to] += int256(amount);
-            allowances[owner_][spender] = allowance - amount;
+            allowances[owner_][spender] = currentAllowance - amount;
             _addActor(to);
-        } catch { }
+        } catch {
+            // Revert expected state if operation failed
+            expectedBalances[owner_] = currentOwnerBalance;
+            expectedBalances[to] = currentToBalance;
+            expectedAllowances[owner_][spender] = currentAllowance;
+        }
     }
 
     function pause(uint256 value) public countCall("pause") {
