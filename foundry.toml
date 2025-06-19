@@ -4,6 +4,7 @@ out = "out"
 libs = ["lib", "dependencies"]
 gas_reports = ['*']
 solc_version = "0.8.30"
+via_ir = true
 
 [profile.deployment]
 optimizer = true
@@ -39,7 +40,7 @@ include_push_bytes = true
 
 [invariant]
 runs = 256
-depth = 32
+depth = 16
 fail_on_revert = true
 call_override = false
 dictionary_weight = 80

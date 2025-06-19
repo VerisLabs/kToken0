@@ -10,19 +10,19 @@ contract TokenHandler is Test {
     kToken public immutable token;
     address public immutable minter;
     address public immutable admin;
-    
+
     // Expected state
     uint256 public expectedTotalSupply;
     mapping(address => uint256) public expectedBalances;
     mapping(address => mapping(address => uint256)) public expectedAllowances;
     bool public expectedPauseState;
-    
+
     // Actual state
     uint256 public actualTotalSupply;
     mapping(address => uint256) public actualBalances;
     mapping(address => mapping(address => uint256)) public actualAllowances;
     bool public actualPauseState;
-    
+
     // Operation tracking
     uint256 public totalMinted;
     uint256 public totalBurned;
@@ -40,6 +40,10 @@ contract TokenHandler is Test {
     // Add call tracking
     mapping(string => uint256) public calls;
 
+    /// @notice Fixed set of actors for more predictable testing
+    address[] private fixedActors;
+    uint256 private constant NUM_FIXED_ACTORS = 5;
+
     modifier countCall(string memory name) {
         calls[name]++;
         _;
@@ -49,12 +53,20 @@ contract TokenHandler is Test {
         token = _token;
         minter = _minter;
         admin = _admin;
-        
+
         // Initialize state tracking
         actualTotalSupply = _token.totalSupply();
         actualPauseState = _token.isPaused();
         expectedTotalSupply = actualTotalSupply;
         expectedPauseState = actualPauseState;
+
+        // Initialize fixed actors
+        for (uint256 i = 0; i < NUM_FIXED_ACTORS; i++) {
+            // Generate deterministic addresses using different seeds
+            address actor = address(uint160(uint256(keccak256(abi.encode("FIXED_ACTOR", i)))));
+            fixedActors.push(actor);
+            _addActor(actor);
+        }
     }
 
     modifier createActorIfNew(address actor) {
@@ -91,29 +103,29 @@ contract TokenHandler is Test {
     function mint(uint256 actorSeed, uint256 amount) public countCall("mint") {
         address actor = _getActor(actorSeed);
         amount = bound(amount, 1, type(uint128).max);
-        
+
         // Get current state right before operation
         uint256 currentTotalSupply = token.totalSupply();
         uint256 currentBalance = token.balanceOf(actor);
         bool currentPauseState = token.isPaused();
-        
+
         if (currentPauseState) {
             wasLastMintOrBurnBlocked = true;
             return;
         }
         wasLastMintOrBurnBlocked = false;
-        
+
         // Set expected state based on current state
         expectedTotalSupply = currentTotalSupply + amount;
         expectedBalances[actor] = currentBalance + amount;
-        
+
         vm.prank(minter);
         try token.mint(actor, amount) {
             // Update actual state
             actualTotalSupply = token.totalSupply();
             actualBalances[actor] = token.balanceOf(actor);
             actualPauseState = token.isPaused();
-            
+
             // Update tracking variables
             totalMinted += amount;
             netMinted[actor] += int256(amount);
@@ -123,7 +135,7 @@ contract TokenHandler is Test {
             // Revert expected state if operation failed
             expectedTotalSupply = currentTotalSupply;
             expectedBalances[actor] = currentBalance;
-            
+
             if (keccak256(bytes(reason)) == keccak256(bytes("Paused()"))) {
                 wasLastMintOrBurnBlocked = true;
             }
@@ -136,32 +148,32 @@ contract TokenHandler is Test {
 
     function burn(uint256 actorSeed, uint256 amount) public countCall("burn") {
         address actor = _getActor(actorSeed);
-        
+
         // Get current state right before operation
         uint256 currentTotalSupply = token.totalSupply();
         uint256 currentBalance = token.balanceOf(actor);
         bool currentPauseState = token.isPaused();
-        
+
         if (currentPauseState) {
             wasLastMintOrBurnBlocked = true;
             return;
         }
         wasLastMintOrBurnBlocked = false;
-        
+
         if (currentBalance == 0) return;
         amount = bound(amount, 1, currentBalance);
-        
+
         // Set expected state based on current state
         expectedTotalSupply = currentTotalSupply - amount;
         expectedBalances[actor] = currentBalance - amount;
-        
+
         vm.prank(minter);
         try token.burn(actor, amount) {
             // Update actual state
             actualTotalSupply = token.totalSupply();
             actualBalances[actor] = token.balanceOf(actor);
             actualPauseState = token.isPaused();
-            
+
             // Update tracking variables
             totalBurned += amount;
             netMinted[actor] -= int256(amount);
@@ -170,7 +182,7 @@ contract TokenHandler is Test {
             // Revert expected state if operation failed
             expectedTotalSupply = currentTotalSupply;
             expectedBalances[actor] = currentBalance;
-            
+
             if (keccak256(bytes(reason)) == keccak256(bytes("Paused()"))) {
                 wasLastMintOrBurnBlocked = true;
             }
@@ -185,19 +197,19 @@ contract TokenHandler is Test {
         address from = _getActor(fromSeed);
         address to = _getActor(toSeed);
         if (from == to) return;
-        
+
         // Get current state right before operation
         uint256 currentFromBalance = token.balanceOf(from);
         uint256 currentToBalance = token.balanceOf(to);
         bool currentPauseState = token.isPaused();
-        
+
         if (currentFromBalance == 0) return;
         amount = bound(amount, 1, currentFromBalance);
-        
+
         // Set expected state based on current state
         expectedBalances[from] = currentFromBalance - amount;
         expectedBalances[to] = currentToBalance + amount;
-        
+
         vm.prank(from);
         try token.transfer(to, amount) {
             // Update actual state
@@ -205,7 +217,7 @@ contract TokenHandler is Test {
             actualBalances[to] = token.balanceOf(to);
             actualTotalSupply = token.totalSupply();
             actualPauseState = token.isPaused();
-            
+
             // Update tracking variables
             netTransferred[from] -= int256(amount);
             netTransferred[to] += int256(amount);
@@ -223,14 +235,14 @@ contract TokenHandler is Test {
         address spender = _getActor(spenderSeed);
         if (owner_ == spender) return;
         amount = bound(amount, 0, type(uint128).max);
-        
+
         // Get current state right before operation
         uint256 currentAllowance = token.allowance(owner_, spender);
         bool currentPauseState = token.isPaused();
-        
+
         // Set expected state based on current state
         expectedAllowances[owner_][spender] = amount;
-        
+
         vm.prank(owner_);
         try token.approve(spender, amount) {
             // Update actual state
@@ -258,21 +270,21 @@ contract TokenHandler is Test {
         address spender = _getActor(spenderSeed);
         address to = _getActor(toSeed);
         if (owner_ == spender || owner_ == to || spender == to) return;
-        
+
         // Get current state right before operation
         uint256 currentOwnerBalance = token.balanceOf(owner_);
         uint256 currentToBalance = token.balanceOf(to);
         uint256 currentAllowance = token.allowance(owner_, spender);
         bool currentPauseState = token.isPaused();
-        
+
         if (currentOwnerBalance == 0 || currentAllowance == 0) return;
         amount = bound(amount, 1, currentOwnerBalance < currentAllowance ? currentOwnerBalance : currentAllowance);
-        
+
         // Set expected state based on current state
         expectedBalances[owner_] = currentOwnerBalance - amount;
         expectedBalances[to] = currentToBalance + amount;
         expectedAllowances[owner_][spender] = currentAllowance - amount;
-        
+
         vm.prank(spender);
         try token.transferFrom(owner_, to, amount) {
             // Update actual state
@@ -281,7 +293,7 @@ contract TokenHandler is Test {
             actualAllowances[owner_][spender] = token.allowance(owner_, spender);
             actualTotalSupply = token.totalSupply();
             actualPauseState = token.isPaused();
-            
+
             // Update tracking variables
             netTransferred[owner_] -= int256(amount);
             netTransferred[to] += int256(amount);
@@ -298,10 +310,10 @@ contract TokenHandler is Test {
     function pause(uint256 value) public countCall("pause") {
         // Convert large numbers to boolean using modulo 2
         bool shouldPause = value % 2 == 1;
-        
+
         // Set expected state
         expectedPauseState = shouldPause;
-        
+
         vm.prank(admin);
         try token.pause(shouldPause) {
             // Update actual state
@@ -313,8 +325,21 @@ contract TokenHandler is Test {
         }
     }
 
-    function _getActor(uint256 seed) internal pure returns (address) {
-        return address(uint160(uint256(keccak256(abi.encodePacked(seed)))));
+    function _getActor(uint256 seed) internal view returns (address) {
+        if (seed % 4 == 0 && fixedActors.length > 0) {
+            // 25% chance to use a fixed actor
+            return fixedActors[seed % fixedActors.length];
+        } else if (seed % 4 == 1 && actors.length > 0) {
+            // 25% chance to use an existing actor
+            return actors[seed % actors.length];
+        } else {
+            // 50% chance to generate a new actor
+            return address(uint160(uint256(keccak256(abi.encode("DYNAMIC_ACTOR", seed)))));
+        }
+    }
+
+    function getFixedActors() public view returns (address[] memory) {
+        return fixedActors;
     }
 
     function getEntryPoints() public pure returns (bytes4[] memory) {

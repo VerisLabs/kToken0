@@ -4,6 +4,8 @@ pragma solidity 0.8.30;
 import "../../src/kToken.sol";
 
 import { TokenHandler } from "./handlers/TokenHandler.sol";
+
+import { AccessControlUpgradeable } from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import "forge-std/Test.sol";
 
@@ -177,58 +179,127 @@ contract kTokenInvariantTest is StdInvariant, Test {
         assertEq(token.owner(), owner, "Owner changed unexpectedly");
     }
 
-    // New invariant tests for expected vs actual state
-    function invariant_ExpectedVsActualTotalSupply() public view {
-        assertEq(
-            handler.actualTotalSupply(),
-            handler.expectedTotalSupply(),
-            "Total supply should match expected"
+    function testFuzz_RoleManagement(address newMinter, address unauthorizedCaller) public {
+        vm.assume(newMinter != address(0));
+        vm.assume(unauthorizedCaller != admin && unauthorizedCaller != address(0));
+        vm.assume(!token.hasRole(token.DEFAULT_ADMIN_ROLE(), unauthorizedCaller));
+
+        // Ensure admin has the DEFAULT_ADMIN_ROLE
+        assertTrue(token.hasRole(token.DEFAULT_ADMIN_ROLE(), admin), "Admin should have DEFAULT_ADMIN_ROLE");
+
+        // Test granting role by admin
+        vm.startPrank(admin);
+        token.grantRole(token.MINTER_ROLE(), newMinter);
+        vm.stopPrank();
+        assertTrue(token.hasRole(token.MINTER_ROLE(), newMinter), "Role should be granted");
+
+        // Test unauthorized role grant
+        bytes32 minterRole = token.MINTER_ROLE();
+        vm.startPrank(unauthorizedCaller);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                bytes4(keccak256("AccessControlUnauthorizedAccount(address,bytes32)")),
+                unauthorizedCaller,
+                token.DEFAULT_ADMIN_ROLE()
+            )
         );
+        token.grantRole(minterRole, newMinter);
+        vm.stopPrank();
+
+        // Test revoking role by admin
+        vm.startPrank(admin);
+        token.revokeRole(minterRole, newMinter);
+        vm.stopPrank();
+        assertFalse(token.hasRole(minterRole, newMinter), "Role should be revoked");
+
+        // Test unauthorized role revocation
+        vm.startPrank(unauthorizedCaller);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                bytes4(keccak256("AccessControlUnauthorizedAccount(address,bytes32)")),
+                unauthorizedCaller,
+                token.DEFAULT_ADMIN_ROLE()
+            )
+        );
+        token.revokeRole(minterRole, newMinter);
+        vm.stopPrank();
+
+        // Test renouncing role
+        vm.startPrank(admin);
+        token.grantRole(minterRole, newMinter);
+        vm.stopPrank();
+
+        vm.startPrank(newMinter);
+        token.renounceRole(minterRole, newMinter);
+        vm.stopPrank();
+        assertFalse(token.hasRole(minterRole, newMinter), "Role should be renounced");
+    }
+
+    function testFuzz_PermitReplay(uint256 ownerPrivateKey, address spender, uint256 value, uint256 deadline) public {
+        vm.assume(ownerPrivateKey != 0 && ownerPrivateKey < type(uint160).max);
+        vm.assume(spender != address(0));
+
+        // Generate owner address from private key
+        address signer = vm.addr(ownerPrivateKey);
+
+        // Ensure deadline is in the future
+        deadline = bound(deadline, block.timestamp + 1, type(uint256).max);
+
+        // Get the current nonce
+        uint256 nonce = token.nonces(signer);
+
+        // Get domain separator
+        bytes32 DOMAIN_SEPARATOR = token.DOMAIN_SEPARATOR();
+
+        // Get permit typehash
+        bytes32 PERMIT_TYPEHASH =
+            keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
+
+        // Create permit signature
+        bytes32 structHash = keccak256(abi.encode(PERMIT_TYPEHASH, signer, spender, value, nonce, deadline));
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, structHash));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerPrivateKey, digest);
+
+        // First permit should succeed
+        token.permit(signer, spender, value, deadline, v, r, s);
+
+        // Attempt to replay the same permit
+        // Note: We don't know the exact recovered address, but we know it will be different
+        // from the expected signer, so we just check for the error type
+        vm.expectRevert();
+        token.permit(signer, spender, value, deadline, v, r, s);
+
+        // Verify nonce increased only once
+        assertEq(token.nonces(signer), nonce + 1, "Nonce should increase only once");
+    }
+
+    function invariant_ExpectedVsActualTotalSupply() public view {
+        assertEq(handler.actualTotalSupply(), handler.expectedTotalSupply(), "Total supply should match expected");
     }
 
     function invariant_ExpectedVsActualBalances() public view {
         address[] memory actors = handler.getActors();
         for (uint256 i = 0; i < actors.length; i++) {
             address actor = actors[i];
-            assertEq(
-                handler.actualBalances(actor),
-                handler.expectedBalances(actor),
-                "Balance should match expected"
-            );
+            assertEq(handler.actualBalances(actor), handler.expectedBalances(actor), "Balance should match expected");
         }
     }
 
     function invariant_ExpectedVsActualPauseState() public view {
-        assertEq(
-            handler.actualPauseState(),
-            handler.expectedPauseState(),
-            "Pause state should match expected"
-        );
+        assertEq(handler.actualPauseState(), handler.expectedPauseState(), "Pause state should match expected");
     }
 
     function invariant_ActualStateMatchesToken() public view {
         // Verify that actual state in handler matches token state
-        assertEq(
-            handler.actualTotalSupply(),
-            token.totalSupply(),
-            "Handler actual total supply should match token"
-        );
+        assertEq(handler.actualTotalSupply(), token.totalSupply(), "Handler actual total supply should match token");
 
         address[] memory actors = handler.getActors();
         for (uint256 i = 0; i < actors.length; i++) {
             address actor = actors[i];
-            assertEq(
-                handler.actualBalances(actor),
-                token.balanceOf(actor),
-                "Handler actual balance should match token"
-            );
+            assertEq(handler.actualBalances(actor), token.balanceOf(actor), "Handler actual balance should match token");
         }
 
-        assertEq(
-            handler.actualPauseState(),
-            token.isPaused(),
-            "Handler actual pause state should match token"
-        );
+        assertEq(handler.actualPauseState(), token.isPaused(), "Handler actual pause state should match token");
     }
 
     function invariant_ExpectedVsActualAllowances() public view {
@@ -251,5 +322,46 @@ contract kTokenInvariantTest is StdInvariant, Test {
                 }
             }
         }
+    }
+
+    function testFuzz_PermitExpiredDeadline(
+        uint256 deadline,
+        uint256 ownerPrivateKey,
+        address spender,
+        uint256 value
+    )
+        public
+    {
+        vm.assume(ownerPrivateKey != 0 && ownerPrivateKey < type(uint160).max);
+        vm.assume(spender != address(0));
+
+        // Generate owner address from private key
+        address signer = vm.addr(ownerPrivateKey);
+
+        // Bound deadline to be in the past
+        deadline = bound(deadline, 0, block.timestamp - 1);
+
+        // Get the current nonce
+        uint256 nonce = token.nonces(signer);
+
+        // Get domain separator
+        bytes32 DOMAIN_SEPARATOR = token.DOMAIN_SEPARATOR();
+
+        // Get permit typehash
+        bytes32 PERMIT_TYPEHASH =
+            keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
+
+        // Create permit signature
+        bytes32 structHash = keccak256(abi.encode(PERMIT_TYPEHASH, signer, spender, value, nonce, deadline));
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, structHash));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerPrivateKey, digest);
+
+        // Test expired permit
+        vm.expectRevert(abi.encodeWithSelector(bytes4(keccak256("ERC2612ExpiredSignature(uint256)")), deadline));
+        token.permit(signer, spender, value, deadline, v, r, s);
+
+        // Verify state hasn't changed
+        assertEq(token.nonces(signer), nonce, "Nonce should not increase for expired permit");
+        assertEq(token.allowance(signer, spender), 0, "Allowance should not change for expired permit");
     }
 }
