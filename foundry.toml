@@ -4,7 +4,6 @@ out = "out"
 libs = ["lib", "dependencies"]
 gas_reports = ['*']
 solc_version = "0.8.30"
-via_ir = true
 
 [profile.deployment]
 optimizer = true
