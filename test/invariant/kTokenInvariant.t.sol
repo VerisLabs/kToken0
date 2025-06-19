@@ -17,14 +17,19 @@ contract kTokenInvariantTest is StdInvariant, Test {
     address public minter;
 
     function setUp() public {
+        // Setup addresses
         owner = makeAddr("owner");
         admin = makeAddr("admin");
         minter = makeAddr("minter");
+
+        // Deploy token
         kToken implementation = new kToken();
         bytes memory data =
             abi.encodeWithSelector(kToken.initialize.selector, "Test Token", "TEST", 18, owner, admin, minter);
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
         token = kToken(address(proxy));
+
+        // Deploy handler
         handler = new TokenHandler(token, minter, admin);
 
         // Grant minter role to handler
@@ -35,14 +40,11 @@ contract kTokenInvariantTest is StdInvariant, Test {
         // Verify roles
         require(token.hasRole(token.MINTER_ROLE(), address(handler)), "Handler must have minter role");
 
+        // Target the handler contract and its functions
         targetContract(address(handler));
-        bytes4[] memory selectors = new bytes4[](6);
-        selectors[0] = TokenHandler.mint.selector;
-        selectors[1] = TokenHandler.burn.selector;
-        selectors[2] = TokenHandler.transfer.selector;
-        selectors[3] = TokenHandler.approve.selector;
-        selectors[4] = TokenHandler.transferFrom.selector;
-        selectors[5] = TokenHandler.pause.selector;
+        // Get the entry points from the handler
+        bytes4[] memory selectors = handler.getEntryPoints();
+        // Target the handler contract and its functions
         targetSelector(FuzzSelector({ addr: address(handler), selectors: selectors }));
     }
 

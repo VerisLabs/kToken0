@@ -182,6 +182,17 @@ contract TokenHandler is Test {
         return address(uint160(uint256(keccak256(abi.encodePacked(seed)))));
     }
 
+    function getEntryPoints() public pure returns (bytes4[] memory) {
+        bytes4[] memory _entryPoints = new bytes4[](6);
+        _entryPoints[0] = this.mint.selector;
+        _entryPoints[1] = this.burn.selector;
+        _entryPoints[2] = this.transfer.selector;
+        _entryPoints[3] = this.approve.selector;
+        _entryPoints[4] = this.transferFrom.selector;
+        _entryPoints[5] = this.pause.selector;
+        return _entryPoints;
+    }
+
     function callSummary() public view {
         console.log("Call Summary:");
         console.log("-------------------");

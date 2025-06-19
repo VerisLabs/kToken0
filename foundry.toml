@@ -39,7 +39,7 @@ include_push_bytes = true
 
 [invariant]
 runs = 256
-depth = 16
+depth = 32
 fail_on_revert = true
 call_override = false
 dictionary_weight = 80
