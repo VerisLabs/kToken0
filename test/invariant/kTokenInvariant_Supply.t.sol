@@ -66,4 +66,4 @@ contract kTokenInvariantSupplyTest is kTokenInvariantSetup {
             assertEq(handler.actualBalances(actor), handler.expectedBalances(actor), "Balance should match expected");
         }
     }
-} 
+}

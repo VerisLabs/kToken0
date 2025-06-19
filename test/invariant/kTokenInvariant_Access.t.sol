@@ -79,4 +79,4 @@ contract kTokenInvariantAccessTest is kTokenInvariantSetup {
         vm.stopPrank();
         assertFalse(token.hasRole(minterRole, newMinter), "Role should be renounced");
     }
-} 
+}

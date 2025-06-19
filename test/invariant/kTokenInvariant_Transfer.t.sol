@@ -51,4 +51,4 @@ contract kTokenInvariantTransferTest is kTokenInvariantSetup {
             }
         }
     }
-} 
+}

@@ -22,15 +22,8 @@ abstract contract kTokenInvariantSetup is StdInvariant, Test {
 
         // Deploy token
         kToken implementation = new kToken();
-        bytes memory data = abi.encodeWithSelector(
-            kToken.initialize.selector,
-            "Test Token",
-            "TEST",
-            18,
-            owner,
-            admin,
-            minter
-        );
+        bytes memory data =
+            abi.encodeWithSelector(kToken.initialize.selector, "Test Token", "TEST", 18, owner, admin, minter);
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
         token = kToken(address(proxy));
 
@@ -52,4 +45,4 @@ abstract contract kTokenInvariantSetup is StdInvariant, Test {
         // Target the handler contract and its functions
         targetSelector(FuzzSelector({ addr: address(handler), selectors: selectors }));
     }
-} 
+}

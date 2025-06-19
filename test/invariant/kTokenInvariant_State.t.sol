@@ -40,4 +40,4 @@ contract kTokenInvariantStateTest is kTokenInvariantSetup {
     function invariant_CallSummary() public view {
         handler.callSummary();
     }
-} 
+}
