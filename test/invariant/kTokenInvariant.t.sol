@@ -176,4 +176,80 @@ contract kTokenInvariantTest is StdInvariant, Test {
         // Owner consistency
         assertEq(token.owner(), owner, "Owner changed unexpectedly");
     }
+
+    // New invariant tests for expected vs actual state
+    function invariant_ExpectedVsActualTotalSupply() public view {
+        assertEq(
+            handler.actualTotalSupply(),
+            handler.expectedTotalSupply(),
+            "Total supply should match expected"
+        );
+    }
+
+    function invariant_ExpectedVsActualBalances() public view {
+        address[] memory actors = handler.getActors();
+        for (uint256 i = 0; i < actors.length; i++) {
+            address actor = actors[i];
+            assertEq(
+                handler.actualBalances(actor),
+                handler.expectedBalances(actor),
+                "Balance should match expected"
+            );
+        }
+    }
+
+    function invariant_ExpectedVsActualPauseState() public view {
+        assertEq(
+            handler.actualPauseState(),
+            handler.expectedPauseState(),
+            "Pause state should match expected"
+        );
+    }
+
+    function invariant_ActualStateMatchesToken() public view {
+        // Verify that actual state in handler matches token state
+        assertEq(
+            handler.actualTotalSupply(),
+            token.totalSupply(),
+            "Handler actual total supply should match token"
+        );
+
+        address[] memory actors = handler.getActors();
+        for (uint256 i = 0; i < actors.length; i++) {
+            address actor = actors[i];
+            assertEq(
+                handler.actualBalances(actor),
+                token.balanceOf(actor),
+                "Handler actual balance should match token"
+            );
+        }
+
+        assertEq(
+            handler.actualPauseState(),
+            token.isPaused(),
+            "Handler actual pause state should match token"
+        );
+    }
+
+    function invariant_ExpectedVsActualAllowances() public view {
+        address[] memory actors = handler.getActors();
+        for (uint256 i = 0; i < actors.length; i++) {
+            for (uint256 j = 0; j < actors.length; j++) {
+                if (i != j) {
+                    address owner_ = actors[i];
+                    address spender = actors[j];
+                    assertEq(
+                        handler.actualAllowances(owner_, spender),
+                        handler.expectedAllowances(owner_, spender),
+                        "Allowance should match expected"
+                    );
+                    assertEq(
+                        handler.actualAllowances(owner_, spender),
+                        token.allowance(owner_, spender),
+                        "Handler actual allowance should match token"
+                    );
+                }
+            }
+        }
+    }
 }
