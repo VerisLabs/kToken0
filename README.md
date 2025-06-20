@@ -2,27 +2,30 @@
 
 ## Overview
 
-kToken is a cross-chain token system leveraging LayerZero's OFT (Omnichain Fungible Token) standard. The contracts are upgradeable and use robust role-based access control for minting, burning, and upgrades. This repository includes:
+kToken is a cross-chain token system leveraging LayerZero's OFT (Omnichain Fungible Token) standard. The contracts are upgradeable and use robust role-based access control for minting and burning or locking and releasing, and upgrades. This repository includes:
 
 - `kToken`: Upgradeable ERC20 token with role-based mint/burn, permit functionality, and UUPS upgradeability.
-- `kOFT`: LayerZero OFT implementation for cross-chain abstraction, upgradeable via UUPS.
+- `kOFT`: LayerZero OFT implementation for cross-chain abstraction, mint and burn, upgradeable via UUPS.
+- `kOFTAdapter`: LayerZero OFT Adapter implementation for cross-chain abstraction, lock/release, upgradeable via UUPS.
 - Comprehensive testing suite including unit, invariant, and integration tests.
 
 ## Directory Structure
 
 ```
-├── src/                    # Main contract sources
-│   ├── interfaces/        # Contract interfaces
-│   ├── kToken.sol        # Core token contract
-│   └── kOFT.sol         # LayerZero OFT implementation
+├── src/                 # Main contract sources
+│   ├── interfaces/      # Contract interfaces
+│   │   └── IKToken.sol
+│   ├── kToken.sol       # Core token contract
+│   ├── kOFT.sol         # LayerZero OFT implementation
+│   └── kOFTAdapter.sol  # LayerZero OFT Adapter implementation
 ├── test/
 │   ├── unit/            # Unit tests
 │   ├── invariant/       # Invariant tests
 │   │   ├── handlers/    # Test handlers
-│   │   └── *.t.sol     # Invariant test suites
-│   ├── fork/           # Fork/integration tests
-│   ├── fuzz/           # Fuzz tests
-│   └── mocks/          # Mock contracts
+│   │   └── *.t.sol      # Invariant test suites
+│   ├── fork/            # Fork/integration tests
+│   ├── fuzz/            # Fuzz tests
+│   └── mocks/           # Mock contracts
 └── script/              # Deployment scripts
 ```
 
@@ -36,22 +39,16 @@ The project uses a comprehensive testing approach:
 forge test --match-contract "kToken|kOFT" --match-path "test/unit/*"
 ```
 
-### Invariant Tests
-The invariant tests are split into logical groups for better organization and maintainability:
-- Supply and Balance (`kTokenInvariant_Supply.t.sol`)
-- Access Control (`kTokenInvariant_Access.t.sol`)
-- Transfer and Allowance (`kTokenInvariant_Transfer.t.sol`)
-- State and Metadata (`kTokenInvariant_State.t.sol`)
+### Fuzz Tests
+```sh
+# Run fuzz tests
+forge test --match-contract "kTokenFuzz"
+```
 
+### Invariant Tests
 ```sh
 # Run all invariant tests
 forge test --match-contract "kTokenInvariant"
-
-# Run specific invariant test groups
-forge test --match-contract "kTokenInvariantSupplyTest"
-forge test --match-contract "kTokenInvariantAccessTest"
-forge test --match-contract "kTokenInvariantTransferTest"
-forge test --match-contract "kTokenInvariantStateTest"
 ```
 
 ### Integration Tests
@@ -107,6 +104,17 @@ forge script script/DeployKOFT.s.sol \
   --sender <accountAddress>
 ```
 
+#### Deploy kOFTAdapter
+
+```sh
+forge script script/DeployKOFTAdapter.s.sol \
+  --rpc-url $RPC_URL \
+  --broadcast \
+  --verify \
+  --account myKeystoreName \
+  --sender <accountAddress>
+```
+
 - `--account myKeystoreName`: Use the keystore you created.
 - `--sender <accountAddress>`: The address corresponding to your keystore.
 
@@ -122,13 +130,12 @@ The deployment scripts expect the following environment variables:
 Set these in your shell or use a `.env` file (do not commit secrets).
 
 ## Key Features
-
-- **ERC20 with Permit**: Supports gasless approvals via EIP-2612
-- **Role-Based Access Control**: Fine-grained permissions for minting and administration
-- **Upgradeable**: UUPS pattern for future improvements
-- **Cross-Chain**: LayerZero OFT implementation for seamless cross-chain transfers
-- **Comprehensive Testing**: Unit, fuzz, invariant, and integration tests
-- **Pausable**: Emergency pause functionality for added security
+- **Flexible OFT Strategies**: Native (mint/burn) and Adapter (lock/release) patterns.
+- **Role-Based Access Control**: Fine-grained permissions for administration and supply management via `MINTER_ROLE`.
+- **Upgradeable**: UUPS pattern allows for future improvements to all core contracts.
+- **Pausable**: `kToken` includes emergency pause functionality for added security.
+- **Gasless Approvals**: `kToken` supports EIP-2612 permits.
+- **Thoroughly Tested**: Comprehensive unit, fuzz, fork, and invariant tests.
 
 ## Security
 
