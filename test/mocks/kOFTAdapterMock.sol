@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
-import { IKToken } from "../../src/interfaces/IKToken.sol";
-import { kOFT } from "../../src/kOFT.sol";
+import { kOFTAdapter } from "../../src/kOFTAdapter.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract kOFTMock is kOFT {
+contract kOFTAdapterMock is kOFTAdapter {
     address public minter;
 
     modifier onlyMinter() {
@@ -12,7 +12,7 @@ contract kOFTMock is kOFT {
         _;
     }
 
-    constructor(address lzEndpoint_, uint8 decimals_) kOFT(lzEndpoint_, decimals_) {
+    constructor(address lzEndpoint_, uint8 decimals_) kOFTAdapter(lzEndpoint_, decimals_) {
         minter = msg.sender;
     }
 
@@ -42,11 +42,10 @@ contract kOFTMock is kOFT {
         minter = initialMinter;
     }
 
-    // Expose the storage getter for testing
-    function getkOFTStorage() external view returns (IKToken) {
-        // keccak256(abi.encode(uint256(keccak256("kToken.storage.kOFT")) - 1)) & ~bytes32(uint256(0xff))
-        bytes32 location = 0x587644eb4c3fc73ac10d93e63726f81712536f856733fbd55e29cec63353dd00;
-        IKToken tokenContract;
+    function getkOFTAdapterStorage() external view returns (IERC20) {
+        // keccak256(abi.encode(uint256(keccak256("kToken.storage.kOFTAdapter")) - 1)) & ~bytes32(uint256(0xff))
+        bytes32 location = 0xc3cb0ef2eb152f0b1a817a5752040bce18ae72a8f914bcbf52be9c234c7ca300;
+        IERC20 tokenContract;
         assembly {
             tokenContract := sload(location)
         }

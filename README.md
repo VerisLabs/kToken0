@@ -1,25 +1,65 @@
-# kUSD Smart Contracts
+# kToken Smart Contracts
 
 ## Overview
 
-kUSD is a cross-chain token system leveraging LayerZero's OFT (Omnichain Fungible Token) standard. The contracts are upgradeable and use robust role-based access control for minting, burning, and upgrades. This repository includes:
+kToken is a cross-chain token system leveraging LayerZero's OFT (Omnichain Fungible Token) standard. The contracts are upgradeable and use robust role-based access control for minting and burning or locking and releasing, and upgrades. This repository includes:
 
-- `kToken`: Upgradeable ERC20 token with role-based mint/burn and UUPS upgradeability.
-- `kOFT`: LayerZero OFT implementation for cross-chain abstraction, upgradeable via UUPS.
-- Deployment scripts for both contracts using Foundry.
+- `kToken`: Upgradeable ERC20 token with role-based mint/burn, permit functionality, and UUPS upgradeability.
+- `kOFT`: LayerZero OFT implementation for cross-chain abstraction, mint and burn, upgradeable via UUPS.
+- `kOFTAdapter`: LayerZero OFT Adapter implementation for cross-chain abstraction, lock/release, upgradeable via UUPS.
+- Comprehensive testing suite including unit, invariant, and integration tests.
 
 ## Directory Structure
 
-- `src/` — Main contract sources
-- `src/interfaces/` — Contract interfaces
-- `test/unit/` — Unit tests
-- `test/mocks/` — Mock contracts for testing
-- `test/fork/` — Fork/integration tests
-- `script/` — Deployment scripts
+```
+├── src/                 # Main contract sources
+│   ├── interfaces/      # Contract interfaces
+│   │   └── IKToken.sol
+│   ├── kToken.sol       # Core token contract
+│   ├── kOFT.sol         # LayerZero OFT implementation
+│   └── kOFTAdapter.sol  # LayerZero OFT Adapter implementation
+├── test/
+│   ├── unit/            # Unit tests
+│   ├── invariant/       # Invariant tests
+│   │   ├── handlers/    # Test handlers
+│   │   └── *.t.sol      # Invariant test suites
+│   ├── fork/            # Fork/integration tests
+│   ├── fuzz/            # Fuzz tests
+│   └── mocks/           # Mock contracts
+└── script/              # Deployment scripts
+```
+
+## Testing
+
+The project uses a comprehensive testing approach:
+
+### Unit Tests
+```sh
+# Run unit tests
+forge test --match-contract "kToken|kOFT" --match-path "test/unit/*"
+```
+
+### Fuzz Tests
+```sh
+# Run fuzz tests
+forge test --match-contract "kTokenFuzz"
+```
+
+### Invariant Tests
+```sh
+# Run all invariant tests
+forge test --match-contract "kTokenInvariant"
+```
+
+### Integration Tests
+```sh
+# Run fork tests
+forge test --match-path "test/fork/*"
+```
 
 ## Deployment
 
-kUSD contracts can be deployed to various networks using the deployment scripts in the `script/` directory.
+kToken contracts can be deployed to various networks using the deployment scripts in the `script/` directory.
 
 ### 1. Add Your Private Key Securely
 
@@ -64,6 +104,17 @@ forge script script/DeployKOFT.s.sol \
   --sender <accountAddress>
 ```
 
+#### Deploy kOFTAdapter
+
+```sh
+forge script script/DeployKOFTAdapter.s.sol \
+  --rpc-url $RPC_URL \
+  --broadcast \
+  --verify \
+  --account myKeystoreName \
+  --sender <accountAddress>
+```
+
 - `--account myKeystoreName`: Use the keystore you created.
 - `--sender <accountAddress>`: The address corresponding to your keystore.
 
@@ -78,22 +129,25 @@ The deployment scripts expect the following environment variables:
 
 Set these in your shell or use a `.env` file (do not commit secrets).
 
-## Testing
-
-Run all tests with:
-
-```sh
-forge test
-```
+## Key Features
+- **Flexible OFT Strategies**: Native (mint/burn) and Adapter (lock/release) patterns.
+- **Role-Based Access Control**: Fine-grained permissions for administration and supply management via `MINTER_ROLE`.
+- **Upgradeable**: UUPS pattern allows for future improvements to all core contracts.
+- **Pausable**: `kToken` includes emergency pause functionality for added security.
+- **Gasless Approvals**: `kToken` supports EIP-2612 permits.
+- **Thoroughly Tested**: Comprehensive unit, fuzz, fork, and invariant tests.
 
 ## Security
 
-- Never use a private key with real funds for deployment or testing.
-- All upgradeable contracts use UUPS and are protected by role-based access control.
-- Review and test thoroughly before deploying to production networks.
+- All upgradeable contracts use UUPS pattern and are protected by role-based access control
+- Comprehensive invariant testing ensures system-wide properties hold under all conditions
+- State consistency checks between operations
+- Proper access control validation
+- Review and test thoroughly before deploying to production networks
 
 ## Credits
 
 - LayerZero Labs for OFT standard
 - OpenZeppelin for upgradeable contracts
 - Patrick Collins for secure deployment patterns
+- Foundry for the testing framework

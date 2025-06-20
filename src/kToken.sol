@@ -31,17 +31,25 @@ contract kToken is
     error Paused();
 
     /*//////////////////////////////////////////////////////////////
+                            CUSTOM STORAGE
+    //////////////////////////////////////////////////////////////*/
+
+    /// @custom:storage-location erc7201:kToken.storage.kToken
+    struct kTokenStorage {
+        uint8 _customDecimals;
+        bool isPaused;
+    }
+
+    // keccak256(abi.encode(uint256(keccak256("kToken.storage.kToken")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant KTOKEN_STORAGE_LOCATION =
+        0x2fb0aec331268355746e3684d9eaaf2249f450cf0e491ca0657288d2091eea00;
+
+    /*//////////////////////////////////////////////////////////////
                                 STORAGE
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Role identifier for oracle privileges
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
-
-    /// @dev Custom decimals storage (ERC20Upgradeable uses 18 by default)
-    uint8 private _customDecimals;
-
-    /// @dev Pause state
-    bool public isPaused;
 
     /*//////////////////////////////////////////////////////////////
                                 EVENTS
@@ -61,7 +69,7 @@ contract kToken is
     //////////////////////////////////////////////////////////////*/
 
     modifier whenNotPaused() {
-        if (isPaused) revert Paused();
+        if (_getkTokenStorage().isPaused) revert Paused();
         _;
     }
 
@@ -96,7 +104,9 @@ contract kToken is
             revert ZeroAddress();
         }
 
-        _customDecimals = decimals_;
+        kTokenStorage storage $ = _getkTokenStorage();
+        $._customDecimals = decimals_;
+        $.isPaused = false;
 
         __ERC20_init(name_, symbol_);
         __ERC20Permit_init(name_);
@@ -115,7 +125,8 @@ contract kToken is
 
     /// @notice Pauses the contract
     function pause(bool _isPaused) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        isPaused = _isPaused;
+        kTokenStorage storage $ = _getkTokenStorage();
+        $.isPaused = _isPaused;
         emit PauseState(_isPaused);
     }
 
@@ -169,13 +180,22 @@ contract kToken is
     /// @dev Overrides the ERC20 decimals function
     /// @return The decimals of the token
     function decimals() public view virtual override returns (uint8) {
-        return _customDecimals;
+        return _getkTokenStorage()._customDecimals;
+    }
+
+    /// @notice Returns whether the contract is paused
+    /// @return Whether the contract is paused
+    function isPaused() public view returns (bool) {
+        return _getkTokenStorage().isPaused;
     }
 
     /*//////////////////////////////////////////////////////////////
                         STORAGE GAP
     //////////////////////////////////////////////////////////////*/
 
-    /// @dev Storage gap for future upgrades
-    uint256[49] private __gap;
+    function _getkTokenStorage() private pure returns (kTokenStorage storage $) {
+        assembly {
+            $.slot := KTOKEN_STORAGE_LOCATION
+        }
+    }
 }
