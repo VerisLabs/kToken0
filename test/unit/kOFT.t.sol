@@ -52,7 +52,7 @@ contract kOFTTest is Test {
     }
 
     function testInitialSetup() public {
-        assertEq(address(oft.getkOFTStorage()), address(token));
+        assertEq(oft.token(), address(token));
         assertEq(oft.owner(), address(this));
     }
 
@@ -60,8 +60,8 @@ contract kOFTTest is Test {
         assertEq(oft.approvalRequired(), false);
     }
 
-    function testTokenFunctionReturnsSelf() public {
-        assertEq(oft.token(), address(oft));
+    function testTokenFunctionReturnsToken() public {
+        assertEq(oft.token(), address(token));
     }
 
     function testDebitViewReturnsCorrectAmounts() public {
