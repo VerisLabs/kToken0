@@ -1,10 +1,10 @@
-# kToken Smart Contracts
+# kToken0 Smart Contracts
 
 ## Overview
 
-kToken is a cross-chain token system leveraging LayerZero's OFT (Omnichain Fungible Token) standard. The contracts are upgradeable and use robust role-based access control for minting and burning or locking and releasing, and upgrades. This repository includes:
+kToken0 is a cross-chain token system leveraging LayerZero's OFT (Omnichain Fungible Token) standard. The contracts are upgradeable and use robust role-based access control for minting and burning or locking and releasing, and upgrades. This repository includes:
 
-- `kToken`: Upgradeable ERC20 token with role-based mint/burn, permit functionality, and UUPS upgradeability.
+- `kToken0`: Upgradeable ERC20 token with role-based mint/burn, permit functionality, and UUPS upgradeability.
 - `kOFT`: LayerZero OFT implementation for cross-chain abstraction, mint and burn, upgradeable via UUPS.
 - `kOFTAdapter`: LayerZero OFT Adapter implementation for cross-chain abstraction, lock/release, upgradeable via UUPS.
 - Comprehensive testing suite including unit, invariant, and integration tests.
@@ -15,7 +15,7 @@ kToken is a cross-chain token system leveraging LayerZero's OFT (Omnichain Fungi
 ├── src/                 # Main contract sources
 │   ├── interfaces/      # Contract interfaces
 │   │   └── IKToken.sol
-│   ├── kToken.sol       # Core token contract
+│   ├── kToken0.sol       # Core token contract
 │   ├── kOFT.sol         # LayerZero OFT implementation
 │   └── kOFTAdapter.sol  # LayerZero OFT Adapter implementation
 ├── test/
@@ -36,7 +36,7 @@ The project uses a comprehensive testing approach:
 ### Unit Tests
 ```sh
 # Run unit tests
-forge test --match-contract "kToken|kOFT" --match-path "test/unit/*"
+forge test --match-contract "kToken0|kOFT" --match-path "test/unit/*"
 ```
 
 ### Fuzz Tests
@@ -59,7 +59,7 @@ forge test --match-path "test/fork/*"
 
 ## Deployment
 
-kToken contracts can be deployed to various networks using the deployment scripts in the `script/` directory.
+kToken0 contracts can be deployed to various networks using the deployment scripts in the `script/` directory.
 
 ### 1. Add Your Private Key Securely
 
@@ -82,7 +82,7 @@ cast wallet import myKeystoreName --interactive
 
 Use the keystore you created to sign transactions with `forge script`:
 
-#### Deploy kToken
+#### Deploy kToken0
 
 ```sh
 forge script script/DeployKToken.s.sol \
@@ -122,10 +122,10 @@ forge script script/DeployKOFTAdapter.s.sol \
 
 The deployment scripts expect the following environment variables:
 - `OWNER`: Address to be set as the contract owner
-- `ADMIN`: (kToken) Address to be granted admin roles
-- `MINTER`: (kToken) Address to be granted minter role
+- `ADMIN`: (kToken0) Address to be granted admin roles
+- `MINTER`: (kToken0) Address to be granted minter role
 - `LZ_ENDPOINT`: (kOFT) LayerZero endpoint address
-- `KTOKEN_CONTRACT`: (kOFT) Deployed kToken contract address
+- `KTOKEN_CONTRACT`: (kOFT) Deployed kToken0 contract address
 
 Set these in your shell or use a `.env` file (do not commit secrets).
 
@@ -133,8 +133,8 @@ Set these in your shell or use a `.env` file (do not commit secrets).
 - **Flexible OFT Strategies**: Native (mint/burn) and Adapter (lock/release) patterns.
 - **Role-Based Access Control**: Fine-grained permissions for administration and supply management via `MINTER_ROLE`.
 - **Upgradeable**: UUPS pattern allows for future improvements to all core contracts.
-- **Pausable**: `kToken` includes emergency pause functionality for added security.
-- **Gasless Approvals**: `kToken` supports EIP-2612 permits.
+- **Pausable**: `kToken0` includes emergency pause functionality for added security.
+- **Gasless Approvals**: `kToken0` supports EIP-2612 permits.
 - **Thoroughly Tested**: Comprehensive unit, fuzz, fork, and invariant tests.
 
 ## Security

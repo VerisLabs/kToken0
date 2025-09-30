@@ -1,59 +1,55 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import { IKToken } from "../../src/interfaces/IKToken.sol";
-import { kToken } from "../../src/kToken.sol";
-import { kOFTV2 } from "../kOFTV2.sol";
-import { MockLayerZeroEndpoint } from "../mocks/MockLayerZeroEndpoint.sol";
-import { kOFTMock } from "../mocks/kOFTMock.sol";
+import { kToken0 } from "../../src/kToken0.sol";
+import { kOFT } from "../../src/kOFT.sol";
 import { SendParam } from "@layerzerolabs/oft-evm/contracts/interfaces/IOFT.sol";
 import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import "forge-std/Test.sol";
-
-interface IUpgrade {
-    function upgradeTo(address newImplementation) external;
-}
+import { Test } from "forge-std/Test.sol";
 
 contract kOFTTest is Test {
-    kToken public token;
-    kOFTMock public oft;
+    kToken0 public token;
+    kOFT public oft;
     address public lzEndpoint;
     address public owner = address(0x1);
     address public admin = address(0x2);
-    address public minter = address(0x3);
+    address public emergencyAdmin = address(0x3);
     address public user = address(0x4);
 
     string public constant NAME = "kUSD";
     string public constant SYMBOL = "kUSD";
     uint8 public constant DECIMALS = 18;
 
-    MockLayerZeroEndpoint public mockEndpoint;
-
     function setUp() public {
-        mockEndpoint = new MockLayerZeroEndpoint();
-        lzEndpoint = address(mockEndpoint);
-        kToken tokenImpl = new kToken();
-        bytes memory tokenInit =
-            abi.encodeWithSelector(kToken.initialize.selector, NAME, SYMBOL, DECIMALS, owner, admin, minter);
-        ERC1967Proxy tokenProxy = new ERC1967Proxy(address(tokenImpl), tokenInit);
-        token = kToken(address(tokenProxy));
-        bool isAdmin = token.hasRole(token.DEFAULT_ADMIN_ROLE(), admin);
-        assertTrue(isAdmin, "admin should have DEFAULT_ADMIN_ROLE on token");
-        vm.deal(admin, 1 ether);
-        kOFTMock oftImpl = new kOFTMock(lzEndpoint, DECIMALS);
-        bytes memory oftInit = abi.encodeWithSelector(oftImpl.initialize.selector, address(this), address(token));
-        ERC1967Proxy oftProxy = new ERC1967Proxy(address(oftImpl), oftInit);
-        oft = kOFTMock(address(oftProxy));
-        oft.initializeMock(address(this));
-        vm.startPrank(admin);
-        token.grantRole(token.MINTER_ROLE(), address(oft));
-        vm.stopPrank();
-        oft.setMinter(address(this));
+        // Deploy mock LayerZero endpoint
+        lzEndpoint = address(0x1337);
+        vm.etch(lzEndpoint, "mock");
+
+        // Deploy kToken0 with temporary kOFT address
+        token = new kToken0(
+            owner,
+            admin,
+            emergencyAdmin,
+            address(this), // temporary - will grant to kOFT later
+            NAME,
+            SYMBOL,
+            DECIMALS
+        );
+
+        // Deploy kOFT
+        kOFT implementation = new kOFT(lzEndpoint, token);
+        bytes memory data = abi.encodeWithSelector(kOFT.initialize.selector, owner);
+        ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
+        oft = kOFT(address(proxy));
+
+        // Grant kOFT minter role
+        vm.prank(owner);
+        token.grantMinterRole(address(oft));
     }
 
     function testInitialSetup() public {
         assertEq(oft.token(), address(token));
-        assertEq(oft.owner(), address(this));
+        assertEq(oft.owner(), owner);
     }
 
     function testApprovalRequiredIsFalse() public {
@@ -64,32 +60,45 @@ contract kOFTTest is Test {
         assertEq(oft.token(), address(token));
     }
 
-    function testDebitViewReturnsCorrectAmounts() public {
-        vm.prank(minter);
-        token.mint(user, 1e18);
-        assertTrue(token.hasRole(token.MINTER_ROLE(), address(oft)));
-        (uint256 sent, uint256 received) = oft.debitView(1e18, 1e18, 1);
-        assertLe(received, 1e18);
+    function testCrosschainMint() public {
+        uint256 amount = 1000e18;
+        
+        // kOFT should be able to mint via crosschainMint
+        vm.prank(address(oft));
+        token.crosschainMint(user, amount);
+        
+        assertEq(token.balanceOf(user), amount);
     }
 
-    function testRemoveDust() public {
-        uint256 amount = 1.23456789 ether;
-        uint256 noDust = oft.removeDust(amount);
-        assertLe(noDust, amount);
+    function testCrosschainBurn() public {
+        uint256 amount = 1000e18;
+        
+        // First mint some tokens
+        vm.prank(address(oft));
+        token.crosschainMint(user, amount);
+        
+        // Then burn them
+        vm.prank(address(oft));
+        token.crosschainBurn(user, amount);
+        
+        assertEq(token.balanceOf(user), 0);
     }
 
-    function testToLDandToSD() public {
-        uint64 amountSD = 1000;
-        uint256 conversionRate = oft.decimalConversionRate();
-        uint256 amountLD = oft.toLD(amountSD);
-        emit log_uint(amountLD);
-        emit log_uint(amountSD * conversionRate);
-        assertEq(amountLD, amountSD * conversionRate);
-        uint256 testLD = 1_000_000;
-        uint64 testSD = oft.toSD(testLD);
-        emit log_uint(testSD);
-        emit log_uint(uint64(testLD / conversionRate));
-        assertEq(testSD, uint64(testLD / conversionRate));
+    function testCrosschainMintOnlyByMinter() public {
+        vm.expectRevert();
+        vm.prank(user);
+        token.crosschainMint(user, 1000e18);
+    }
+
+    function testCrosschainBurnOnlyByMinter() public {
+        // Mint first
+        vm.prank(address(oft));
+        token.crosschainMint(user, 1000e18);
+        
+        // Try to burn from non-minter
+        vm.expectRevert();
+        vm.prank(user);
+        token.crosschainBurn(user, 1000e18);
     }
 
     function testBuildMsgAndOptions() public {
@@ -102,46 +111,34 @@ contract kOFTTest is Test {
             composeMsg: "",
             oftCmd: ""
         });
+        
         (bytes memory msgBytes, bytes memory options) = oft.buildMsgAndOptions(param, 1000);
         assertGt(msgBytes.length, 0);
     }
 
-    function testInitializeWithZeroAddressReverts() public {
-        kOFTMock o = new kOFTMock(lzEndpoint, DECIMALS);
-        vm.expectRevert();
-        o.initialize(address(0), address(token));
-        vm.expectRevert();
-        o.initialize(owner, address(0));
-    }
-
     function testCannotReinitialize() public {
         vm.expectRevert();
-        oft.initialize(owner, address(token));
+        oft.initialize(owner);
     }
 
-    function testExposedCredit() public {
-        uint256 before = token.balanceOf(user);
-        uint256 received = oft.exposedCredit(user, 1000, 1);
-        assertEq(received, 1000);
-        assertEq(token.balanceOf(user), before + 1000);
+    function testSupportsERC7802Interface() public {
+        // ERC7802 interface ID
+        bytes4 erc7802InterfaceId = type(IERC7802).interfaceId;
+        assertTrue(token.supportsInterface(erc7802InterfaceId));
     }
 
-    function testExposedDebit() public {
-        uint256 amount = 1e18;
-        address from = address(this);
-        oft.exposedCredit(from, amount, 1);
-        oft.exposedDebit(from, amount, amount, 1);
-        assertEq(token.balanceOf(from), 0);
+    function testSupportsERC165Interface() public {
+        bytes4 erc165InterfaceId = type(IERC165).interfaceId;
+        assertTrue(token.supportsInterface(erc165InterfaceId));
     }
+}
 
-    function testOnlyOwnerCanUpgrade() public {
-        kOFTMock newImpl = new kOFTMock(lzEndpoint, DECIMALS);
-        address notOwner = address(0xBEEF);
-        vm.prank(notOwner);
-        vm.expectRevert();
-        IUpgrade(address(oft)).upgradeTo(address(newImpl));
-        vm.prank(address(this));
-        vm.expectRevert();
-        IUpgrade(address(oft)).upgradeTo(address(newImpl));
-    }
+// Minimal interface definitions for testing
+interface IERC7802 {
+    function crosschainMint(address to, uint256 amount) external;
+    function crosschainBurn(address from, uint256 amount) external;
+}
+
+interface IERC165 {
+    function supportsInterface(bytes4 interfaceId) external view returns (bool);
 }

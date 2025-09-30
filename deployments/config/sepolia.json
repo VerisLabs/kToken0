@@ -1,0 +1,14 @@
+{
+  "network": "sepolia",
+  "chainId": 11155111,
+  "deploymentType": "spoke",
+  "roles": {
+    "owner": "0x0000000000000000000000000000000000000000",
+    "admin": "0x0000000000000000000000000000000000000000",
+    "emergencyAdmin": "0x0000000000000000000000000000000000000000"
+  },
+  "layerZero": {
+    "lzEndpoint": "0x6EDCE65403992e310A62460808c4b910D972f10f",
+    "lzEid": 40161
+  }
+}

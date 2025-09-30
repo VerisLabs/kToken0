@@ -1,10 +1,10 @@
 @layerzerolabs-lz-evm-messagelib-v2/=dependencies/@layerzerolabs-lz-evm-messagelib-v2-3.0.102/
-@layerzerolabs/lz-evm-messagelib-v2/=dependencies/@layerzerolabs-lz-evm-messagelib-v2-3.0.102/
 @layerzerolabs-lz-evm-protocol-v2/=dependencies/@layerzerolabs-lz-evm-protocol-v2-3.0.102/
 @layerzerolabs-oapp-evm-upgradeable-0.1.2/=dependencies/@layerzerolabs-oapp-evm-upgradeable-0.1.2/
 @layerzerolabs-oapp-evm/=dependencies/@layerzerolabs-oapp-evm-0.3.2/
 @layerzerolabs-oft-evm-upgradeable-3.1.0/=dependencies/@layerzerolabs-oft-evm-upgradeable-3.1.0/
 @layerzerolabs-oft-evm/=dependencies/@layerzerolabs-oft-evm-3.1.4/
+@layerzerolabs/lz-evm-messagelib-v2/=dependencies/@layerzerolabs-lz-evm-messagelib-v2-3.0.102/
 @layerzerolabs/lz-evm-protocol-v2/=dependencies/@layerzerolabs-lz-evm-protocol-v2-3.0.102/
 @layerzerolabs/oapp-evm-upgradeable/=dependencies/@layerzerolabs-oapp-evm-upgradeable-0.1.2/
 @layerzerolabs/oapp-evm/=dependencies/@layerzerolabs-oapp-evm-0.3.2/
