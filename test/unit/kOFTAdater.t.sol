@@ -43,26 +43,26 @@ contract kOFTAdapterTest is Test {
         oftAdapter = kOFTAdapter(address(proxy));
 
         // Grant adapter minter role
-        vm.prank(owner);
+        vm.prank(admin);
         token.grantMinterRole(address(oftAdapter));
 
-        // Mint initial supply to owner for testing lock/release pattern
-        vm.prank(owner);
+        // Mint initial supply to admin for testing lock/release pattern
+        vm.prank(admin);
         token.grantMinterRole(address(this));
-        token.crosschainMint(owner, 1000000e18);
+        token.crosschainMint(admin, 1000000e18);
     }
 
-    function testInitialSetup() public {
+    function testInitialSetup() public view {
         assertEq(oftAdapter.token(), address(token));
         assertEq(oftAdapter.owner(), owner);
     }
 
-    function testApprovalRequiredIsTrue() public {
+    function testApprovalRequiredIsTrue() public view {
         // OFTAdapter requires approval because it transfers tokens
         assertTrue(oftAdapter.approvalRequired());
     }
 
-    function testTokenFunctionReturnsToken() public {
+    function testTokenFunctionReturnsToken() public view {
         assertEq(oftAdapter.token(), address(token));
     }
 
@@ -70,17 +70,17 @@ contract kOFTAdapterTest is Test {
         uint256 lockAmount = 1000e18;
         
         // Owner approves adapter to transfer tokens
-        vm.prank(owner);
+        vm.prank(admin);
         token.approve(address(oftAdapter), lockAmount);
         
-        uint256 ownerBalanceBefore = token.balanceOf(owner);
+        uint256 ownerBalanceBefore = token.balanceOf(admin);
         uint256 adapterBalanceBefore = token.balanceOf(address(oftAdapter));
         
         // Simulate lock by transferring to adapter
-        vm.prank(owner);
+        vm.prank(admin);
         token.transfer(address(oftAdapter), lockAmount);
         
-        assertEq(token.balanceOf(owner), ownerBalanceBefore - lockAmount);
+        assertEq(token.balanceOf(admin), ownerBalanceBefore - lockAmount);
         assertEq(token.balanceOf(address(oftAdapter)), adapterBalanceBefore + lockAmount);
     }
 
@@ -117,7 +117,7 @@ contract kOFTAdapterTest is Test {
         oftAdapter.initialize(owner);
     }
 
-    function testAdapterHasMinterRole() public {
+    function testAdapterHasMinterRole() public view {
         assertTrue(token.hasAnyRole(address(oftAdapter), token.MINTER_ROLE()));
     }
 
