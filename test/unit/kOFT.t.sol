@@ -49,7 +49,7 @@ contract kOFTUnitTest is Test {
         oft = kOFT(address(proxy));
 
         // Grant OFT minter role
-        vm.prank(owner);
+        vm.prank(admin);
         token.grantMinterRole(address(oft));
     }
 
@@ -57,11 +57,11 @@ contract kOFTUnitTest is Test {
     // INITIALIZATION TESTS
     // ============================================
 
-    function test_Initialize_SetsOwner() public {
+    function test_Initialize_SetsOwner() public view {
         assertEq(oft.owner(), owner);
     }
 
-    function test_Initialize_SetsTokenCorrectly() public {
+    function test_Initialize_SetsTokenCorrectly() public view {
         assertEq(oft.token(), address(token));
     }
 
@@ -85,11 +85,11 @@ contract kOFTUnitTest is Test {
     // TOKEN INTERFACE TESTS
     // ============================================
 
-    function test_Token_ReturnsCorrectAddress() public {
+    function test_Token_ReturnsCorrectAddress() public view {
         assertEq(oft.token(), address(token));
     }
 
-    function test_ApprovalRequired_ReturnsFalse() public {
+    function test_ApprovalRequired_ReturnsFalse() public view {
         assertFalse(oft.approvalRequired());
     }
 
@@ -157,7 +157,7 @@ contract kOFTUnitTest is Test {
     // BUILD MSG AND OPTIONS TESTS
     // ============================================
 
-    function test_BuildMsgAndOptions_Success() public {
+    function test_BuildMsgAndOptions_Success() public view {
         SendParam memory param = SendParam({
             dstEid: 1,
             to: bytes32(uint256(uint160(user1))),
@@ -168,13 +168,13 @@ contract kOFTUnitTest is Test {
             oftCmd: ""
         });
         
-        (bytes memory message, bytes memory options) = oft.buildMsgAndOptions(param, 1000e6);
+        (bytes memory message, ) = oft.buildMsgAndOptions(param, 1000e6);
         
         assertGt(message.length, 0, "Message should not be empty");
         // Options can be empty or contain default values
     }
 
-    function test_BuildMsgAndOptions_DifferentAmounts() public {
+    function test_BuildMsgAndOptions_DifferentAmounts() public view {
         uint256[] memory amounts = new uint256[](3);
         amounts[0] = 100e6;
         amounts[1] = 1000e6;
@@ -237,7 +237,7 @@ contract kOFTUnitTest is Test {
     // INTEGRATION WITH kToken0
     // ============================================
 
-    function test_OFT_HasMinterRole() public {
+    function test_OFT_HasMinterRole() public view {
         assertTrue(token.hasAnyRole(address(oft), token.MINTER_ROLE()));
     }
 
@@ -282,7 +282,7 @@ contract kOFTUnitTest is Test {
     // ============================================
 
     function test_Mint_RevertsWhenTokenPaused() public {
-        vm.prank(admin);
+        vm.prank(emergencyAdmin);
         token.setPaused(true);
         
         vm.expectRevert();
@@ -294,7 +294,7 @@ contract kOFTUnitTest is Test {
         vm.prank(address(oft));
         token.crosschainMint(user1, 1000e6);
         
-        vm.prank(admin);
+        vm.prank(emergencyAdmin);
         token.setPaused(true);
         
         vm.expectRevert();
@@ -306,7 +306,7 @@ contract kOFTUnitTest is Test {
     // DECIMAL HANDLING TESTS
     // ============================================
 
-    function test_Decimals_MatchesToken() public {
+    function test_Decimals_MatchesToken() public view {
         // OFT should use token's decimals
         assertEq(token.decimals(), DECIMALS);
     }
