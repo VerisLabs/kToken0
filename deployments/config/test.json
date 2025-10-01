@@ -1,0 +1,13 @@
+{
+  "network": "test",
+  "chainId": 31337,
+  "roles": {
+    "owner": "0x1",
+    "admin": "0x2",
+    "emergencyAdmin": "0x3"
+  },
+  "layerZero": {
+    "lzEndpoint": "0x6EDCE65403992e310A62460808c4b910D972f10f",
+    "lzEid": 30101
+  }
+}

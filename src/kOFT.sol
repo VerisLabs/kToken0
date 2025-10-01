@@ -1,16 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
-import { IKToken } from "./interfaces/IKToken.sol";
 import { OFTCoreUpgradeable } from "@layerzerolabs/oft-evm-upgradeable/contracts/oft/OFTCoreUpgradeable.sol";
 import { SendParam } from "@layerzerolabs/oft-evm/contracts/interfaces/IOFT.sol";
-import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import { UUPSUpgradeable } from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+
+import { kToken0 } from "./kToken0.sol";
 
 /// @title kOFT
 /// @notice LayerZero OFT implementation for cross-chain token abstraction
-contract kOFT is Initializable, OFTCoreUpgradeable, UUPSUpgradeable {
+/// @dev This contract is a wrapper around the OFTCoreUpgradeable contract to implement the kToken0 contract
+contract kOFT is OFTCoreUpgradeable {
     /*//////////////////////////////////////////////////////////////
                                 ERRORS
     //////////////////////////////////////////////////////////////*/
@@ -19,51 +18,45 @@ contract kOFT is Initializable, OFTCoreUpgradeable, UUPSUpgradeable {
     error ZeroAddress();
 
     /*//////////////////////////////////////////////////////////////
-                            CUSTOM STORAGE
+                               STORAGE
     //////////////////////////////////////////////////////////////*/
 
-    /// @custom:storage-location erc7201:kToken.storage.kOFT
-    struct kOFTStorage {
-        IKToken tokenContract;
-    }
-
-    // keccak256(abi.encode(uint256(keccak256("kToken.storage.kOFT")) - 1)) & ~bytes32(uint256(0xff))
-    bytes32 private constant KOFT_STORAGE_LOCATION = 0x587644eb4c3fc73ac10d93e63726f81712536f856733fbd55e29cec63353dd00;
+    /// @notice The token0 contract
+    kToken0 public immutable token0;
 
     /*//////////////////////////////////////////////////////////////
-                                EVENTS
+                             CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Emitted when the upgrade is authorized
-    event UpgradeAuthorized(address indexed newImplementation, address indexed sender);
+    /// @notice Constructor to initialize the kOFT contract
+    /// @param lzEndpoint_ The LayerZero endpoint
+    /// @param kToken0_ The token0 contract
+    constructor(address lzEndpoint_, kToken0 kToken0_) OFTCoreUpgradeable(kToken0_.decimals(), lzEndpoint_) {
+        if (lzEndpoint_ == address(0) || address(kToken0_) == address(0)) {
+            revert ZeroAddress();
+        }
 
-    /*//////////////////////////////////////////////////////////////
-                                INITIALIZER
-    //////////////////////////////////////////////////////////////*/
+        token0 = kToken0_;
 
-    /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor(address lzEndpoint_, uint8 decimals_) OFTCoreUpgradeable(decimals_, lzEndpoint_) {
         _disableInitializers();
     }
 
     /// @notice Initializes the kOFT contract
     /// @param delegate_ The address with admin rights (owner)
-    /// @param tokenContract_ The address of the underlying token contract
-    function initialize(address delegate_, address tokenContract_) external initializer {
-        if (delegate_ == address(0) || tokenContract_ == address(0)) {
-            revert ZeroAddress();
-        }
+    function initialize(address delegate_) external initializer {
         __OFTCore_init(delegate_);
         __Ownable_init(delegate_);
-        __UUPSUpgradeable_init();
-        _getkOFTStorage().tokenContract = IKToken(tokenContract_);
     }
 
     /*//////////////////////////////////////////////////////////////
                                 INTERNAL
     //////////////////////////////////////////////////////////////*/
 
-    /// @dev Debits tokens from the sender's balance (internal, override)
+    /// @notice Debits tokens from the sender's balance (internal, override)
+    /// @param _from The address from which to debit tokens
+    /// @param _amountLD The amount to debit (local decimals)
+    /// @param _minAmountLD The minimum amount to debit (local decimals)
+    /// @param _dstEid The destination chain id
     function _debit(
         address _from,
         uint256 _amountLD,
@@ -81,10 +74,12 @@ contract kOFT is Initializable, OFTCoreUpgradeable, UUPSUpgradeable {
         // therefore amountSentLD CAN differ from amountReceivedLD.
 
         // @dev Default OFT burns on src.
-        _getkOFTStorage().tokenContract.burn(_from, amountSentLD);
+        token0.crosschainBurn(_from, amountSentLD);
     }
 
-    /// @dev Credits tokens to the specified address (internal, override)
+    /// @notice Credits tokens to the specified address (internal, override)
+    /// @param _to The address to credit tokens to
+    /// @param _amountLD The amount to credit (local decimals)
     function _credit(
         address _to,
         uint256 _amountLD,
@@ -97,57 +92,23 @@ contract kOFT is Initializable, OFTCoreUpgradeable, UUPSUpgradeable {
     {
         if (_to == address(0)) _to = address(0xdead); // _mint(...) does not support address(0x0)
         // @dev Default OFT mints on dst.
-        _getkOFTStorage().tokenContract.mint(_to, _amountLD);
+        token0.crosschainMint(_to, _amountLD);
         // @dev In the case of NON-default OFT, the _amountLD MIGHT not be == amountReceivedLD.
         return _amountLD;
-    }
-
-    /// @dev Authorizes contract upgrades (only owner)
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {
-        if (newImplementation == address(0)) revert ZeroAddress();
-        emit UpgradeAuthorized(newImplementation, msg.sender);
     }
 
     /*//////////////////////////////////////////////////////////////
                                 VIEWS
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Returns the address of the token (OFT pattern: self-address)
-    function token() public view returns (address) {
-        return address(_getkOFTStorage().tokenContract);
-    }
-
     /// @notice Indicates whether approval is required to send tokens (always false for OFT)
     function approvalRequired() external pure virtual returns (bool) {
         return false;
     }
 
-    /// @notice View-only version of debit (does not mutate state)
-    function debitView(
-        uint256 _amountToSendLD,
-        uint256 _minAmountToCreditLD,
-        uint32 _dstEid
-    )
-        external
-        view
-        returns (uint256 amountDebitedLD, uint256 amountToCreditLD)
-    {
-        return _debitView(_amountToSendLD, _minAmountToCreditLD, _dstEid);
-    }
-
-    /// @notice Removes dust from the amount (for cross-chain decimal conversion)
-    function removeDust(uint256 _amountLD) external view returns (uint256 amountLD) {
-        return _removeDust(_amountLD);
-    }
-
-    /// @notice Converts shared decimals to local decimals
-    function toLD(uint64 _amountSD) external view returns (uint256 amountLD) {
-        return _toLD(_amountSD);
-    }
-
-    /// @notice Converts local decimals to shared decimals
-    function toSD(uint256 _amountLD) external view returns (uint64 amountSD) {
-        return _toSD(_amountLD);
+    /// @notice Returns the address of the token (OFT pattern: self-address)
+    function token() public view returns (address) {
+        return address(token0);
     }
 
     /// @notice Builds the message and options for a send operation
@@ -164,15 +125,5 @@ contract kOFT is Initializable, OFTCoreUpgradeable, UUPSUpgradeable {
         returns (bytes memory message, bytes memory options)
     {
         return _buildMsgAndOptions(_sendParam, _amountToCreditLD);
-    }
-
-    /*//////////////////////////////////////////////////////////////
-                            STORAGE
-    //////////////////////////////////////////////////////////////*/
-
-    function _getkOFTStorage() private pure returns (kOFTStorage storage $) {
-        assembly {
-            $.slot := KOFT_STORAGE_LOCATION
-        }
     }
 }

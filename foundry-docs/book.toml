@@ -1,0 +1,13 @@
+[book]
+src = "src"
+title = "KAM kToken0 Documentation"
+
+[output.html]
+no-section-label = true
+additional-js = ["solidity.min.js"]
+additional-css = ["book.css"]
+mathjax-support = true
+git-repository-url = "https://github.com/VerisLabs/kToken"
+
+[output.html.fold]
+enable = true

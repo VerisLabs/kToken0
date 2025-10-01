@@ -18,6 +18,13 @@ invariant = { runs = 128 }
 fuzz = { runs = 50 }           # Fewer runs for fork tests
 invariant = { runs = 25 }
 
+[profile.solx]
+optimization = 3
+gas_limit = 100_000_000
+
+[lint]
+exclude_lints = ["mixed-case-function","screaming-snake-case-immutable","pascal-case-struct", "mixed-case-variable"]
+
 [fmt]
 bracket_spacing = true
 int_types = "long"
@@ -45,6 +52,14 @@ call_override = false
 dictionary_weight = 80
 include_storage = true
 include_push_bytes = true
+
+[doc]
+out = "foundry-docs/"
+title = "KAM kToken0 Documentation"
+ignore = [
+    "src/vendor/",
+    "test/**",
+]
 
 [dependencies]
 forge-std = "1.9.7"
