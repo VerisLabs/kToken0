@@ -1,153 +1,164 @@
-# kToken0 Smart Contracts
+# kToken Smart Contracts
 
-## Overview
+## Usage
 
-kToken0 is a cross-chain token system leveraging LayerZero's OFT (Omnichain Fungible Token) standard. The contracts are upgradeable and use robust role-based access control for minting and burning or locking and releasing, and upgrades. This repository includes:
+kToken comes with a comprehensive set of tests written in Solidity, which can be executed using Foundry.
 
-- `kToken0`: Upgradeable ERC20 token with role-based mint/burn, permit functionality, and UUPS upgradeability.
-- `kOFT`: LayerZero OFT implementation for cross-chain abstraction, mint and burn, upgradeable via UUPS.
-- `kOFTAdapter`: LayerZero OFT Adapter implementation for cross-chain abstraction, lock/release, upgradeable via UUPS.
-- Comprehensive testing suite including unit, invariant, and integration tests.
+To install Foundry:
 
-## Directory Structure
-
+```bash
+curl -L https://foundry.paradigm.xyz | bash
 ```
-├── src/                 # Main contract sources
-│   ├── interfaces/      # Contract interfaces
-│   │   └── IKToken.sol
-│   ├── kToken0.sol       # Core token contract
-│   ├── kOFT.sol         # LayerZero OFT implementation
-│   └── kOFTAdapter.sol  # LayerZero OFT Adapter implementation
-├── test/
-│   ├── unit/            # Unit tests
-│   ├── invariant/       # Invariant tests
-│   │   ├── handlers/    # Test handlers
-│   │   └── *.t.sol      # Invariant test suites
-│   ├── fork/            # Fork/integration tests
-│   ├── fuzz/            # Fuzz tests
-│   └── mocks/           # Mock contracts
-└── script/              # Deployment scripts
+
+This will download foundryup. To start Foundry, run:
+
+```bash
+foundryup
 ```
+
+To clone the repo:
+
+```bash
+git clone https://github.com/your-org/kToken.git && cd kToken
+```
+
+## Installing Dependencies
+
+The project uses Soldeer for dependency management. To install all dependencies:
+
+```bash
+soldeer install
+```
+
+This will install all dependencies specified in soldeer.lock.
 
 ## Testing
 
-The project uses a comprehensive testing approach:
+### in default mode
 
-### Unit Tests
-```sh
-# Run unit tests
-forge test --match-contract "kToken0|kOFT" --match-path "test/unit/*"
+To run the tests in a default mode:
+
+```bash
+forge test
 ```
 
-### Fuzz Tests
-```sh
-# Run fuzz tests
-forge test --match-contract "kTokenFuzz"
+### in coverage mode
+
+```bash
+forge coverage
 ```
 
-### Invariant Tests
-```sh
-# Run all invariant tests
-forge test --match-contract "kTokenInvariant"
+### Using solx compiler (optional)
+
+For faster compilation with the LLVM-based Solidity compiler, you can install and use solx:
+
+Install solx:
+
+```bash
+curl -L https://raw.githubusercontent.com/matter-labs/solx/main/install-solx | bash
 ```
 
-### Integration Tests
-```sh
-# Run fork tests
-forge test --match-path "test/fork/*"
+Use with forge:
+
+```bash
+forge build --use $(which solx)
+forge test --use $(which solx)
 ```
 
-## Deployment
+## Smart Contracts Documentation
 
-kToken0 contracts can be deployed to various networks using the deployment scripts in the `script/` directory.
+Generate and view the Foundry documentation:
 
-### 1. Add Your Private Key Securely
+```bash
+forge doc --serve --port 4000
+```
 
-**Do NOT add your private key to `.env` or commit it to version control.**
+This will open the documentation at http://localhost:4000
 
-Instead, create a secure wallet keystore and use it with Foundry's `cast` and `forge` tools.
+## Protocol Documentation
 
-#### Create a new wallet keystore
+- **Architecture** - Complete protocol architecture and operational flows
+- **Interfaces** - Interface documentation for all protocol contracts  
+- **Audit Scope** - Comprehensive audit scope and security considerations
 
-```sh
+## For Integrators
+
+### Cross-Chain Operations
+
+kToken enables seamless cross-chain token transfers using LayerZero's OFT standard:
+
+- **kOFT.mint()** - Mints tokens on destination chain after cross-chain transfer
+- **kOFT.burn()** - Burns tokens on source chain to initiate cross-chain transfer
+- **kOFTAdapter.lock()** - Locks tokens for cross-chain transfer (adapter pattern)
+- **kOFTAdapter.release()** - Releases locked tokens on destination chain
+
+### Native vs Adapter Patterns
+
+The protocol supports two OFT strategies:
+
+**Native Pattern (kOFT):**
+
+- Direct mint/burn operations
+- Suitable for new token deployments
+- Full control over token supply
+
+**Adapter Pattern (kOFTAdapter):**
+
+- Lock/release existing tokens
+- Compatible with existing ERC20 tokens
+- Maintains original token contract
+
+### Role Hierarchy
+
+| Role | Permissions | Contracts |
+|------|-------------|-----------|
+| OWNER | Ultimate control, upgrades | All |
+| ADMIN_ROLE | Operational management | All |
+| MINTER_ROLE | Mint/burn tokens | kToken0 |
+| PAUSER_ROLE | Emergency pause | kToken0 |
+
+### Deployment
+
+Deploy contracts using the scripts in the `script/` directory:
+
+```bash
+# Create a secure keystore (recommended)
 cast wallet import myKeystoreName --interactive
-```
-- Enter your wallet's private key when prompted.
-- Provide a password to encrypt the keystore file.
 
-> ⚠️ **Recommendation:**
-> Do not use a private key associated with real funds. Create a new wallet for deployment and testing.
-
-### 2. Deploy the Smart Contracts
-
-Use the keystore you created to sign transactions with `forge script`:
-
-#### Deploy kToken0
-
-```sh
-forge script script/DeployKToken.s.sol \
-  --rpc-url $RPC_URL \
-  --broadcast \
-  --verify \
-  --account myKeystoreName \
-  --sender <accountAddress>
+# Deploy contracts
+forge script script/DeployHub.s.sol --rpc-url $RPC_URL --broadcast --verify --account myKeystoreName --sender <accountAddress>
+forge script script/DeploySpoke.s.sol --rpc-url $RPC_URL --broadcast --verify --account myKeystoreName --sender <accountAddress>
 ```
 
-#### Deploy kOFT
+**Required Environment Variables:**
 
-```sh
-forge script script/DeployKOFT.s.sol \
-  --rpc-url $RPC_URL \
-  --broadcast \
-  --verify \
-  --account myKeystoreName \
-  --sender <accountAddress>
-```
+- `OWNER`: Contract owner address
+- `ADMIN`: Admin role address  
+- `MINTER`: Minter role address
+- `LZ_ENDPOINT`: LayerZero endpoint address
+- `KTOKEN_CONTRACT`: Deployed kToken0 contract address
 
-#### Deploy kOFTAdapter
+## Safety
 
-```sh
-forge script script/DeployKOFTAdapter.s.sol \
-  --rpc-url $RPC_URL \
-  --broadcast \
-  --verify \
-  --account myKeystoreName \
-  --sender <accountAddress>
-```
+This software is experimental and is provided "as is" and "as available".
 
-- `--account myKeystoreName`: Use the keystore you created.
-- `--sender <accountAddress>`: The address corresponding to your keystore.
+No warranties are provided and no liability will be accepted for any loss incurred through the use of this codebase.
 
-#### Environment Variables
+Always include thorough tests when using kToken to ensure it interacts correctly with your code.
 
-The deployment scripts expect the following environment variables:
-- `OWNER`: Address to be set as the contract owner
-- `ADMIN`: (kToken0) Address to be granted admin roles
-- `MINTER`: (kToken0) Address to be granted minter role
-- `LZ_ENDPOINT`: (kOFT) LayerZero endpoint address
-- `KTOKEN_CONTRACT`: (kOFT) Deployed kToken0 contract address
+## Known Limitations
 
-Set these in your shell or use a `.env` file (do not commit secrets).
+- Cross-chain transfers require LayerZero endpoint configuration and fees
+- Adapter pattern requires existing token contract cooperation
+- Upgrade operations require proper access control and timelock considerations
+- Gas costs vary significantly across different networks
 
-## Key Features
-- **Flexible OFT Strategies**: Native (mint/burn) and Adapter (lock/release) patterns.
-- **Role-Based Access Control**: Fine-grained permissions for administration and supply management via `MINTER_ROLE`.
-- **Upgradeable**: UUPS pattern allows for future improvements to all core contracts.
-- **Pausable**: `kToken0` includes emergency pause functionality for added security.
-- **Gasless Approvals**: `kToken0` supports EIP-2612 permits.
-- **Thoroughly Tested**: Comprehensive unit, fuzz, fork, and invariant tests.
+## Contributing
 
-## Security
+The code is currently in active development. Please review the codebase thoroughly and test extensively before integration.
 
-- All upgradeable contracts use UUPS pattern and are protected by role-based access control
-- Comprehensive invariant testing ensures system-wide properties hold under all conditions
-- State consistency checks between operations
-- Proper access control validation
-- Review and test thoroughly before deploying to production networks
+## License
 
-## Credits
+(c) 2025 KAM Protocol
 
-- LayerZero Labs for OFT standard
-- OpenZeppelin for upgradeable contracts
-- Patrick Collins for secure deployment patterns
-- Foundry for the testing framework
+All rights reserved. This project uses a proprietary license.

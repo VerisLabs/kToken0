@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.30;
 
-import { kToken0 } from "../src/kToken0.sol";
 import { kOFTAdapter } from "../src/kOFTAdapter.sol";
-import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import { kToken0 } from "../src/kToken0.sol";
+
 import { DeploymentManager } from "./DeploymentManager.s.sol";
-import { Script, console2 } from "forge-std/Script.sol";
+import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import { console2 } from "forge-std/Script.sol";
 
 /// @title DeployHub
 /// @notice Deploys kToken0 + kOFTAdapter for mainnet (hub) deployment

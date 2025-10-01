@@ -59,7 +59,7 @@ abstract contract DeploymentManager is Script {
         if (chainId == 10) return "optimism";
         if (chainId == 56) return "bsc";
         if (chainId == 250) return "fantom";
-        if (chainId == 43114) return "avalanche";
+        if (chainId == 43_114) return "avalanche";
 
         // Fallback to localhost for unknown chains
         return "localhost";
@@ -99,7 +99,6 @@ abstract contract DeploymentManager is Script {
 
         return config;
     }
-
 
     /// @notice Reads existing deployment addresses from output JSON
     /// @return output Deployment output struct with contract addresses
@@ -191,7 +190,9 @@ abstract contract DeploymentManager is Script {
         json = string.concat(json, '"kOFT":"', vm.toString(output.contracts.kOFT), '",');
         json = string.concat(json, '"kOFTAdapter":"', vm.toString(output.contracts.kOFTAdapter), '",');
         json = string.concat(json, '"kOFTImplementation":"', vm.toString(output.contracts.kOFTImplementation), '",');
-        json = string.concat(json, '"kOFTAdapterImplementation":"', vm.toString(output.contracts.kOFTAdapterImplementation), '"');
+        json = string.concat(
+            json, '"kOFTAdapterImplementation":"', vm.toString(output.contracts.kOFTAdapterImplementation), '"'
+        );
         json = string.concat(json, "}}");
 
         return json;

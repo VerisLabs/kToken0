@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: CC0-1.0
 pragma solidity 0.8.30;
 
-/// copied from https://eips.ethereum.org/EIPS/eip-7802 reference implementation
+/// copied from https://github.com/ethereum/ERCs/blob/master/ERCS/erc-7802.md reference implementation
 /// @title IERC7802
 /// @notice Defines the interface for crosschain ERC20 transfers.
 interface IERC7802 {

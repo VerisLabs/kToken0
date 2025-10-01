@@ -3,7 +3,6 @@ pragma solidity ^0.8.20;
 
 import { kOFTAdapter } from "../../src/kOFTAdapter.sol";
 import { kToken0 } from "../../src/kToken0.sol";
-import { SendParam } from "@layerzerolabs/oft-evm/contracts/interfaces/IOFT.sol";
 import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import { Test } from "forge-std/Test.sol";
 
@@ -49,7 +48,7 @@ contract kOFTAdapterTest is Test {
         // Mint initial supply to admin for testing lock/release pattern
         vm.prank(admin);
         token.grantMinterRole(address(this));
-        token.crosschainMint(admin, 1000000e18);
+        token.crosschainMint(admin, 1_000_000e18);
     }
 
     function testInitialSetup() public view {
@@ -68,18 +67,18 @@ contract kOFTAdapterTest is Test {
 
     function testLockAndReleasePattern() public {
         uint256 lockAmount = 1000e18;
-        
+
         // Owner approves adapter to transfer tokens
         vm.prank(admin);
         token.approve(address(oftAdapter), lockAmount);
-        
+
         uint256 ownerBalanceBefore = token.balanceOf(admin);
         uint256 adapterBalanceBefore = token.balanceOf(address(oftAdapter));
-        
+
         // Simulate lock by transferring to adapter
         vm.prank(admin);
         token.transfer(address(oftAdapter), lockAmount);
-        
+
         assertEq(token.balanceOf(admin), ownerBalanceBefore - lockAmount);
         assertEq(token.balanceOf(address(oftAdapter)), adapterBalanceBefore + lockAmount);
     }
@@ -89,7 +88,7 @@ contract kOFTAdapterTest is Test {
         vm.prank(address(oftAdapter));
         token.crosschainMint(user, 1000e18);
         assertEq(token.balanceOf(user), 1000e18);
-        
+
         // Non-minter should not be able to mint
         vm.expectRevert();
         vm.prank(user);
@@ -100,12 +99,12 @@ contract kOFTAdapterTest is Test {
         // First mint some tokens
         vm.prank(address(oftAdapter));
         token.crosschainMint(user, 1000e18);
-        
+
         // Adapter should be able to burn
         vm.prank(address(oftAdapter));
         token.crosschainBurn(user, 500e18);
         assertEq(token.balanceOf(user), 500e18);
-        
+
         // Non-minter should not be able to burn
         vm.expectRevert();
         vm.prank(user);

@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: UNLICENSED
 // due to the kToken license, this contract is UNLICENSED
-// but all the code in this file uses MIT license.
+// but all the code in this file (kToken0.sol) uses MIT license.
 pragma solidity 0.8.30;
 
 import { IERC7802 } from "./interfaces/IERC7802.sol";
-import { IERC165 } from "@openzeppelin/contracts/interfaces/IERC165.sol";
+
 import { kToken } from "./vendor/KAM/kToken.sol";
+import { IERC165 } from "@openzeppelin/contracts/interfaces/IERC165.sol";
 
 /// @title kToken0
 /// @notice KAM Token0 contract for cross-chain token abstraction and LZ OFT implementation
 /// @dev This contract is a wrapper around the kToken contract to implement the IERC7802 interface
 /// @dev link: https://github.com/ethereum/ERCs/blob/master/ERCS/erc-7802.md
-/// @dev This contract extends LayerZero's OFT for chain abstraction
 contract kToken0 is kToken, IERC7802, IERC165 {
     /*//////////////////////////////////////////////////////////////
                                 EVENTS
@@ -54,8 +54,8 @@ contract kToken0 is kToken, IERC7802, IERC165 {
                                 EXTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Allows the TOKEN_BRIDGE to mint tokens.
-    /// @param _to     Address to mint tokens to.
+    /// @notice Allows the OFT contract to mint tokens.
+    /// @param _to Address to mint tokens to.
     /// @param _amount Amount of tokens to mint.
     function crosschainMint(address _to, uint256 _amount) external nonReentrant onlyRoles(MINTER_ROLE) {
         _checkPaused();
@@ -64,8 +64,8 @@ contract kToken0 is kToken, IERC7802, IERC165 {
         emit CrosschainMint(_to, _amount, msg.sender);
     }
 
-    /// @notice Allows the TOKEN_BRIDGE to burn tokens.
-    /// @param _from   Address to burn tokens from.
+    /// @notice Allows the OFT contract to burn tokens.
+    /// @param _from Address to burn tokens from.
     /// @param _amount Amount of tokens to burn.
     function crosschainBurn(address _from, uint256 _amount) external nonReentrant onlyRoles(MINTER_ROLE) {
         _checkPaused();
@@ -74,6 +74,9 @@ contract kToken0 is kToken, IERC7802, IERC165 {
         emit CrosschainBurn(_from, _amount, msg.sender);
     }
 
+    /// @notice Checks if the contract supports an interface
+    /// @param interfaceId The interface id to check
+    /// @return True if the contract supports the interface, false otherwise
     function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
         return interfaceId == type(IERC7802).interfaceId || interfaceId == type(IERC165).interfaceId;
     }

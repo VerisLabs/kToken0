@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import { kToken0 } from "../../src/kToken0.sol";
 import { kOFT } from "../../src/kOFT.sol";
+import { kToken0 } from "../../src/kToken0.sol";
 import { SendParam } from "@layerzerolabs/oft-evm/contracts/interfaces/IOFT.sol";
 import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import { Test } from "forge-std/Test.sol";
@@ -14,7 +14,7 @@ import { Test } from "forge-std/Test.sol";
 contract kOFTUnitTest is Test {
     kToken0 public token;
     kOFT public oft;
-    
+
     address public owner = address(0x1);
     address public admin = address(0x2);
     address public emergencyAdmin = address(0x3);
@@ -99,20 +99,20 @@ contract kOFTUnitTest is Test {
 
     function test_Debit_BurnsTokensFromSender() public {
         uint256 amount = 1000e6;
-        
+
         // Setup: Mint tokens to user1
         vm.prank(address(oft));
         token.crosschainMint(user1, amount);
-        
+
         uint256 balanceBefore = token.balanceOf(user1);
         uint256 supplyBefore = token.totalSupply();
-        
+
         // Simulate debit (this would be called internally by send())
         // We need to expose this for testing or test through actual send
         // For now, test the effect through crosschainBurn which _debit calls
         vm.prank(address(oft));
         token.crosschainBurn(user1, 400e6);
-        
+
         assertEq(token.balanceOf(user1), balanceBefore - 400e6);
         assertEq(token.totalSupply(), supplyBefore - 400e6);
     }
@@ -129,13 +129,13 @@ contract kOFTUnitTest is Test {
 
     function test_Credit_MintsTokensToRecipient() public {
         uint256 amount = 1000e6;
-        
+
         uint256 balanceBefore = token.balanceOf(user1);
         uint256 supplyBefore = token.totalSupply();
-        
+
         vm.prank(address(oft));
         token.crosschainMint(user1, amount);
-        
+
         assertEq(token.balanceOf(user1), balanceBefore + amount);
         assertEq(token.totalSupply(), supplyBefore + amount);
     }
@@ -144,12 +144,12 @@ contract kOFTUnitTest is Test {
         // OFT should redirect address(0) to address(0xdead)
         // This is handled in _credit function
         uint256 amount = 1000e6;
-        
+
         // When minting to address(0), it should go to 0xdead instead
         // Testing through the actual behavior
         vm.prank(address(oft));
         token.crosschainMint(address(0xdead), amount);
-        
+
         assertEq(token.balanceOf(address(0xdead)), amount);
     }
 
@@ -167,9 +167,9 @@ contract kOFTUnitTest is Test {
             composeMsg: "",
             oftCmd: ""
         });
-        
-        (bytes memory message, ) = oft.buildMsgAndOptions(param, 1000e6);
-        
+
+        (bytes memory message,) = oft.buildMsgAndOptions(param, 1000e6);
+
         assertGt(message.length, 0, "Message should not be empty");
         // Options can be empty or contain default values
     }
@@ -178,8 +178,8 @@ contract kOFTUnitTest is Test {
         uint256[] memory amounts = new uint256[](3);
         amounts[0] = 100e6;
         amounts[1] = 1000e6;
-        amounts[2] = 10000e6;
-        
+        amounts[2] = 10_000e6;
+
         for (uint256 i = 0; i < amounts.length; i++) {
             SendParam memory param = SendParam({
                 dstEid: 1,
@@ -190,7 +190,7 @@ contract kOFTUnitTest is Test {
                 composeMsg: "",
                 oftCmd: ""
             });
-            
+
             (bytes memory message,) = oft.buildMsgAndOptions(param, amounts[i]);
             assertGt(message.length, 0);
         }
@@ -203,17 +203,17 @@ contract kOFTUnitTest is Test {
     function test_SetPeer_Success() public {
         uint32 dstEid = 110;
         bytes32 peer = bytes32(uint256(uint160(address(0x9999))));
-        
+
         vm.prank(owner);
         oft.setPeer(dstEid, peer);
-        
+
         assertEq(oft.peers(dstEid), peer);
     }
 
     function test_SetPeer_RevertsForNonOwner() public {
         uint32 dstEid = 110;
         bytes32 peer = bytes32(uint256(uint160(address(0x9999))));
-        
+
         vm.expectRevert();
         vm.prank(user1);
         oft.setPeer(dstEid, peer);
@@ -223,11 +223,11 @@ contract kOFTUnitTest is Test {
         uint32 dstEid = 110;
         bytes32 peer1 = bytes32(uint256(uint160(address(0x9999))));
         bytes32 peer2 = bytes32(uint256(uint160(address(0x8888))));
-        
+
         vm.startPrank(owner);
         oft.setPeer(dstEid, peer1);
         assertEq(oft.peers(dstEid), peer1);
-        
+
         oft.setPeer(dstEid, peer2);
         assertEq(oft.peers(dstEid), peer2);
         vm.stopPrank();
@@ -243,22 +243,22 @@ contract kOFTUnitTest is Test {
 
     function test_OFT_CanMintTokens() public {
         uint256 amount = 5000e6;
-        
+
         vm.prank(address(oft));
         token.crosschainMint(user1, amount);
-        
+
         assertEq(token.balanceOf(user1), amount);
     }
 
     function test_OFT_CanBurnTokens() public {
         uint256 amount = 5000e6;
-        
+
         vm.prank(address(oft));
         token.crosschainMint(user1, amount);
-        
+
         vm.prank(address(oft));
         token.crosschainBurn(user1, 2000e6);
-        
+
         assertEq(token.balanceOf(user1), 3000e6);
     }
 
@@ -271,7 +271,7 @@ contract kOFTUnitTest is Test {
     function test_NonOFT_CannotBurn() public {
         vm.prank(address(oft));
         token.crosschainMint(user1, 1000e6);
-        
+
         vm.expectRevert();
         vm.prank(user1);
         token.crosschainBurn(user1, 500e6);
@@ -284,7 +284,7 @@ contract kOFTUnitTest is Test {
     function test_Mint_RevertsWhenTokenPaused() public {
         vm.prank(emergencyAdmin);
         token.setPaused(true);
-        
+
         vm.expectRevert();
         vm.prank(address(oft));
         token.crosschainMint(user1, 1000e6);
@@ -293,10 +293,10 @@ contract kOFTUnitTest is Test {
     function test_Burn_RevertsWhenTokenPaused() public {
         vm.prank(address(oft));
         token.crosschainMint(user1, 1000e6);
-        
+
         vm.prank(emergencyAdmin);
         token.setPaused(true);
-        
+
         vm.expectRevert();
         vm.prank(address(oft));
         token.crosschainBurn(user1, 500e6);
@@ -313,11 +313,11 @@ contract kOFTUnitTest is Test {
 
     function test_AmountLD_HandlesCorrectDecimals() public {
         // Test that amounts in local decimals work correctly
-        uint256 amount = 1000 * 10**DECIMALS; // 1000 tokens
-        
+        uint256 amount = 1000 * 10 ** DECIMALS; // 1000 tokens
+
         vm.prank(address(oft));
         token.crosschainMint(user1, amount);
-        
+
         assertEq(token.balanceOf(user1), amount);
     }
 
@@ -327,40 +327,40 @@ contract kOFTUnitTest is Test {
 
     function test_MintIncreasesSupply() public {
         uint256 supplyBefore = token.totalSupply();
-        
+
         vm.prank(address(oft));
         token.crosschainMint(user1, 1000e6);
-        
+
         assertEq(token.totalSupply(), supplyBefore + 1000e6);
     }
 
     function test_BurnDecreasesSupply() public {
         vm.prank(address(oft));
         token.crosschainMint(user1, 1000e6);
-        
+
         uint256 supplyBefore = token.totalSupply();
-        
+
         vm.prank(address(oft));
         token.crosschainBurn(user1, 400e6);
-        
+
         assertEq(token.totalSupply(), supplyBefore - 400e6);
     }
 
     function test_MultipleOperations_SupplyTracking() public {
         vm.startPrank(address(oft));
-        
+
         token.crosschainMint(user1, 1000e6);
         assertEq(token.totalSupply(), 1000e6);
-        
+
         token.crosschainMint(user2, 500e6);
         assertEq(token.totalSupply(), 1500e6);
-        
+
         token.crosschainBurn(user1, 300e6);
         assertEq(token.totalSupply(), 1200e6);
-        
+
         token.crosschainBurn(user2, 200e6);
         assertEq(token.totalSupply(), 1000e6);
-        
+
         vm.stopPrank();
     }
 
@@ -371,27 +371,144 @@ contract kOFTUnitTest is Test {
     function testFuzz_MintAndBurn(uint256 mintAmount, uint256 burnAmount) public {
         mintAmount = bound(mintAmount, 1e6, type(uint96).max);
         burnAmount = bound(burnAmount, 1e6, mintAmount);
-        
+
         vm.startPrank(address(oft));
-        
+
         token.crosschainMint(user1, mintAmount);
         assertEq(token.balanceOf(user1), mintAmount);
-        
+
         token.crosschainBurn(user1, burnAmount);
         assertEq(token.balanceOf(user1), mintAmount - burnAmount);
-        
+
         vm.stopPrank();
     }
 
     function testFuzz_SetPeer(uint32 eid, address peerAddr) public {
         vm.assume(eid > 0);
         vm.assume(peerAddr != address(0));
-        
+
         bytes32 peer = bytes32(uint256(uint160(peerAddr)));
-        
+
         vm.prank(owner);
         oft.setPeer(eid, peer);
-        
+
         assertEq(oft.peers(eid), peer);
+    }
+
+    // ============================================
+    // CRITICAL EDGE CASES
+    // ============================================
+
+    function test_RevokedOFT_CannotMint() public {
+        vm.prank(admin);
+        token.revokeMinterRole(address(oft));
+
+        vm.expectRevert();
+        vm.prank(address(oft));
+        token.crosschainMint(user1, 1000e6);
+    }
+
+    function test_RevokedOFT_CannotBurn() public {
+        vm.prank(address(oft));
+        token.crosschainMint(user1, 1000e6);
+
+        vm.prank(admin);
+        token.revokeMinterRole(address(oft));
+
+        vm.expectRevert();
+        vm.prank(address(oft));
+        token.crosschainBurn(user1, 500e6);
+    }
+
+    function test_ZeroAmount_Mint() public {
+        uint256 balanceBefore = token.balanceOf(user1);
+
+        vm.prank(address(oft));
+        token.crosschainMint(user1, 0);
+
+        assertEq(token.balanceOf(user1), balanceBefore);
+    }
+
+    function test_ZeroAmount_Burn() public {
+        vm.prank(address(oft));
+        token.crosschainMint(user1, 1000e6);
+
+        uint256 balanceBefore = token.balanceOf(user1);
+
+        vm.prank(address(oft));
+        token.crosschainBurn(user1, 0);
+
+        assertEq(token.balanceOf(user1), balanceBefore);
+    }
+
+    function test_SetPeer_ToZeroAddress() public {
+        vm.prank(owner);
+        oft.setPeer(110, bytes32(0));
+
+        assertEq(oft.peers(110), bytes32(0));
+    }
+
+    function test_GetPeer_NonexistentChain() public view {
+        assertEq(oft.peers(999), bytes32(0));
+    }
+
+    function test_MultipleOFTs_CanCoexist() public {
+        // Deploy second OFT
+        kOFT oft2Implementation = new kOFT(lzEndpoint, token);
+        bytes memory data2 = abi.encodeWithSelector(kOFT.initialize.selector, owner);
+        ERC1967Proxy proxy2 = new ERC1967Proxy(address(oft2Implementation), data2);
+        kOFT oft2 = kOFT(address(proxy2));
+
+        vm.prank(admin);
+        token.grantMinterRole(address(oft2));
+
+        // Both should work independently
+        vm.prank(address(oft));
+        token.crosschainMint(user1, 1000e6);
+
+        vm.prank(address(oft2));
+        token.crosschainMint(user2, 2000e6);
+
+        assertEq(token.balanceOf(user1), 1000e6);
+        assertEq(token.balanceOf(user2), 2000e6);
+    }
+
+    function test_Burn_ExactBalance() public {
+        uint256 amount = 1000e6;
+
+        vm.prank(address(oft));
+        token.crosschainMint(user1, amount);
+
+        vm.prank(address(oft));
+        token.crosschainBurn(user1, amount);
+
+        assertEq(token.balanceOf(user1), 0);
+        assertEq(token.totalSupply(), 0);
+    }
+
+    function test_SupplyTracking_AfterManyOperations() public {
+        uint256[] memory mints = new uint256[](5);
+        mints[0] = 1000e6;
+        mints[1] = 2500e6;
+        mints[2] = 750e6;
+        mints[3] = 3200e6;
+        mints[4] = 1800e6;
+
+        uint256 expectedSupply = 0;
+
+        vm.startPrank(address(oft));
+
+        for (uint256 i = 0; i < mints.length; i++) {
+            token.crosschainMint(user1, mints[i]);
+            expectedSupply += mints[i];
+            assertEq(token.totalSupply(), expectedSupply);
+        }
+
+        // Burn some
+        token.crosschainBurn(user1, 1500e6);
+        expectedSupply -= 1500e6;
+        assertEq(token.totalSupply(), expectedSupply);
+
+        vm.stopPrank();
     }
 }

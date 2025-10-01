@@ -1,15 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
-import { IERC165 } from "@openzeppelin/contracts/interfaces/IERC165.sol";
 import { OFTCoreUpgradeable } from "@layerzerolabs/oft-evm-upgradeable/contracts/oft/OFTCoreUpgradeable.sol";
 import { SendParam } from "@layerzerolabs/oft-evm/contracts/interfaces/IOFT.sol";
 
 import { kToken0 } from "./kToken0.sol";
 
-
 /// @title kOFT
 /// @notice LayerZero OFT implementation for cross-chain token abstraction
+/// @dev This contract is a wrapper around the OFTCoreUpgradeable contract to implement the kToken0 contract
 contract kOFT is OFTCoreUpgradeable {
     /*//////////////////////////////////////////////////////////////
                                 ERRORS
@@ -22,19 +21,23 @@ contract kOFT is OFTCoreUpgradeable {
                                STORAGE
     //////////////////////////////////////////////////////////////*/
 
+    /// @notice The token0 contract
     kToken0 public immutable token0;
 
     /*//////////////////////////////////////////////////////////////
                              CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
 
+    /// @notice Constructor to initialize the kOFT contract
+    /// @param lzEndpoint_ The LayerZero endpoint
+    /// @param kToken0_ The token0 contract
     constructor(address lzEndpoint_, kToken0 kToken0_) OFTCoreUpgradeable(kToken0_.decimals(), lzEndpoint_) {
         if (lzEndpoint_ == address(0) || address(kToken0_) == address(0)) {
             revert ZeroAddress();
         }
-        
+
         token0 = kToken0_;
-        
+
         _disableInitializers();
     }
 
@@ -49,7 +52,11 @@ contract kOFT is OFTCoreUpgradeable {
                                 INTERNAL
     //////////////////////////////////////////////////////////////*/
 
-    /// @dev Debits tokens from the sender's balance (internal, override)
+    /// @notice Debits tokens from the sender's balance (internal, override)
+    /// @param _from The address from which to debit tokens
+    /// @param _amountLD The amount to debit (local decimals)
+    /// @param _minAmountLD The minimum amount to debit (local decimals)
+    /// @param _dstEid The destination chain id
     function _debit(
         address _from,
         uint256 _amountLD,
@@ -70,7 +77,9 @@ contract kOFT is OFTCoreUpgradeable {
         token0.crosschainBurn(_from, amountSentLD);
     }
 
-    /// @dev Credits tokens to the specified address (internal, override)
+    /// @notice Credits tokens to the specified address (internal, override)
+    /// @param _to The address to credit tokens to
+    /// @param _amountLD The amount to credit (local decimals)
     function _credit(
         address _to,
         uint256 _amountLD,
@@ -100,7 +109,7 @@ contract kOFT is OFTCoreUpgradeable {
     /// @notice Returns the address of the token (OFT pattern: self-address)
     function token() public view returns (address) {
         return address(token0);
-    }   
+    }
 
     /// @notice Builds the message and options for a send operation
     /// @param _sendParam The send parameter struct
